@@ -1,0 +1,23 @@
+{
+  "name": "project-intake",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Project intake app — Fastify + Prisma/SQLite backend and React + Vite frontend.",
+  "type": "module",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "db:generate": "npm run db:generate --workspace=backend",
+    "db:migrate": "npm run db:migrate --workspace=backend",
+    "db:studio": "npm run db:studio --workspace=backend"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

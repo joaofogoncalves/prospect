@@ -1,0 +1,30 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background: #f7f7f8;
+  color: #1a1a1a;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1a1a1a;
+    color: #f7f7f8;
+  }
+}
+
+button {
+  cursor: pointer;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #4f46e5;
+  color: white;
+}
+
+input {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
