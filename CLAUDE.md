@@ -79,7 +79,8 @@ docs/                            Living documentation (keep in sync — see belo
 - **ESM + NodeNext.** Backend uses `"type": "module"`; relative imports include the
   `.js` extension (e.g. `import { env } from "./env.js"`) even though sources are `.ts`.
 - **Database changes** go through Prisma: edit `schema.prisma`, then
-  `npm run db:migrate`. `backend/prisma/dev.db` is local and gitignored.
+  `npm run db:migrate`. `backend/prisma/dev.db` is local and gitignored — and holds
+  real test data: **never reset/wipe it without asking** (see House rules).
 - **Data is user-scoped.** Intake routes filter by `request.user.sub`, and
   `POST /api/intakes` sets `userId` from the token — never trust a client-supplied
   owner. New protected routes go through the `authenticate` preHandler.
@@ -147,7 +148,14 @@ pattern, a workflow convention — append an entry** (`## NNN — Title`, date, 
 Why). Don't rewrite past entries; supersede them. Read this log before reversing an
 established choice.
 
-## House rule
+## House rules
 
-Do not run `gh pr merge` or any merge command without an explicit, in-conversation
-instruction for that specific PR. Green CI is not authorization to merge.
+- **Never reset, wipe, or delete the dev database without explicit, in-conversation
+  permission.** `backend/prisma/dev.db` holds real, hand-made test data. Do **not**
+  run `prisma migrate reset`, delete/recreate `dev.db`, or otherwise clear rows —
+  even after tests, even to "start clean". If a task seems to need a fresh DB, **ask
+  first**. (Forward migrations via `npm run db:migrate` are fine; destroying data is
+  not.)
+- **Do not run `gh pr merge`** or any merge command without an explicit,
+  in-conversation instruction for that specific PR. Green CI is not authorization to
+  merge.
