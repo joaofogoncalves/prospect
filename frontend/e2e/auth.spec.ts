@@ -25,9 +25,10 @@ test.describe("login flow — state transitions", () => {
     await page.getByLabel("Password").fill("correct-password");
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    // success transition -> dashboard, error gone
-    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+    // success transition -> intake list, error gone. ("Sign out" now lives in
+    // the account dropdown, so assert on a stable list-page marker instead.)
     await expect(page).toHaveURL("/");
+    await expect(page.getByRole("button", { name: "New intake" })).toBeVisible();
     await expect(page.getByRole("alert")).toHaveCount(0);
   });
 

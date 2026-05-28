@@ -10,11 +10,29 @@ export type Theme = "light" | "dark";
 
 const STORAGE_KEY = "intake_theme";
 
-// Read the persisted theme, falling back to the OS preference. Guarded so it
-// also works under jsdom (tests), where matchMedia may be undefined.
+// Storage helpers guarded so they no-op where Storage is unavailable or throws
+// (jsdom in tests, Safari private mode, etc.).
+function readStored(): Theme | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored === "light" || stored === "dark" ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(theme: Theme): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, theme);
+  } catch {
+    // ignore — persistence is best-effort.
+  }
+}
+
+// Read the persisted theme, falling back to the OS preference.
 function getInitialTheme(): Theme {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === "light" || stored === "dark") return stored;
+  const stored = readStored();
+  if (stored) return stored;
   const prefersDark =
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -35,7 +53,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Apply the `dark` class to <html> and persist the choice.
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
-    localStorage.setItem(STORAGE_KEY, theme);
+    writeStored(theme);
   }, [theme]);
 
   const value: ThemeContextValue = {
