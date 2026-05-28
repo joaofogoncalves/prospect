@@ -1,0 +1,90 @@
+# Dependabot configuration — https://docs.github.com/code-security/dependabot
+#
+# Strategy for Prospect:
+#   • One batched PR per ecosystem, once a week (Monday early morning, Lisbon).
+#   • A "cooldown" so a freshly published release has to settle before Dependabot
+#     opens a PR for it — patches/minors soak for a week, majors for a month. This
+#     dodges versions that get yanked or hot-patched within days of release.
+#   • minor + patch bumps are grouped together; majors come as their own PRs (a
+#     breaking change shouldn't be able to block a routine patch group from merging).
+version: 2
+
+updates:
+  # ── npm (root + workspaces: backend, frontend; single root lockfile) ──────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Lisbon"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-patch-days: 7
+      semver-minor-days: 14
+      semver-major-days: 30
+    groups:
+      npm-production:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      npm-development:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
+
+  # ── Docker base images (backend + frontend) ──────────────────────────────────
+  - package-ecosystem: "docker"
+    directories:
+      - "/backend"
+      - "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Lisbon"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-minor-days: 14
+      semver-major-days: 30
+    groups:
+      docker:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(docker)"
+
+  # ── GitHub Actions used in workflows (kept SHA-pinned; this bumps the SHAs) ────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Lisbon"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci(deps)"

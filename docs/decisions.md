@@ -427,3 +427,35 @@ session held the data but never surfaced it. A tiny profile view closes that gap
 `createdAt` already existed on the `User` model; exposing it is a one-field addition
 with no schema change, and "member since" is the natural third detail to round out
 the page.
+
+## 021 — Repo hardening: CI, CodeQL, dependency review & Dependabot
+*2026-05-28*
+
+**Decision:** Added a `.github/` supply-chain + CI baseline:
+
+- **CI** (`workflows/ci.yml`) — on push/PR to `main`: `build-and-test` (npm ci →
+  `prisma generate` → `npm run build` (type-checks both workspaces) → Vitest) and a
+  separate `e2e` job (Playwright/chromium). Both required for merge.
+- **CodeQL** (`workflows/codeql.yml`) — `javascript-typescript`,
+  `security-and-quality` queries, on push/PR + weekly cron.
+- **Dependency review** (`workflows/dependency-review.yml`) — fails PRs adding
+  deps with **high+** severity advisories; posts a summary comment.
+- **Dependabot** (`dependabot.yml`) — npm (root workspaces), docker (both
+  Dockerfiles), and github-actions. **Weekly** (Mon 06:00 Europe/Lisbon),
+  **grouped** (minor+patch batched; majors separate), with a **cooldown** so
+  releases settle before a PR opens: patch 7d / minor 14d / major 30d.
+- All third-party actions are **pinned to commit SHA** (with a `# vN` comment so
+  Dependabot's github-actions updater keeps them current); `step-security/harden-runner`
+  audits egress; workflow `permissions` default to `contents: read`.
+- Added `SECURITY.md` (private advisory reporting) and `CODEOWNERS`.
+- GitHub-side: branch protection on `main` (require PR + the CI checks, dismiss
+  stale reviews, require conversation resolution, block force-push/deletion;
+  admins not enforced so the solo owner keeps an escape hatch), plus Dependabot
+  alerts/security-updates, secret scanning, and push protection enabled.
+
+**Why:** The repo had no CI or supply-chain controls at all. The cooldown ("bounce
+days") avoids churning on releases that get yanked or hot-patched within days, and
+weekly grouping keeps PR noise to ~a handful per week instead of one-per-dependency.
+SHA-pinning closes the mutable-tag supply-chain hole while Dependabot keeps the pins
+fresh, so pinning doesn't rot. Majors are deliberately *not* grouped with patches so
+a breaking bump can't block a routine security patch from merging.
