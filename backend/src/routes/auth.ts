@@ -6,8 +6,18 @@ type Credentials = { email: string; password: string; name?: string };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function publicUser(user: { id: string; email: string; name: string | null }) {
-  return { id: user.id, email: user.email, name: user.name };
+function publicUser(user: {
+  id: string;
+  email: string;
+  name: string | null;
+  createdAt: Date;
+}) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    createdAt: user.createdAt,
+  };
 }
 
 export async function authRoutes(app: FastifyInstance) {
