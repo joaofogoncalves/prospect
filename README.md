@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/prospect-logo.svg" width="92" alt="Prospect logo" />
+</p>
+
 ```
 ██████╗ ██████╗  ██████╗ ███████╗██████╗ ███████╗ ██████╗████████╗
 ██╔══██╗██╔══██╗██╔═══██╗██╔════╝██╔══██╗██╔════╝██╔════╝╚══██╔══╝
@@ -7,15 +11,19 @@
 ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝     ╚══════╝ ╚═════╝   ╚═╝
 ```
 
-> **Appraise every opportunity.** Capture incoming project requests and let AI triage
-> them — summary, tags, and a risk checklist.
+<p align="center">
+  <b>Appraise every opportunity.</b><br />
+  Capture incoming project requests and let AI triage them — summary, tags, and a risk checklist.
+</p>
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
-![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933?logo=node.js&logoColor=white)
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
-![Fastify](https://img.shields.io/badge/Fastify-5-000000?logo=fastify&logoColor=white)
-![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white)
-![OpenAI](https://img.shields.io/badge/OpenAI-structured%20outputs-412991?logo=openai&logoColor=white)
+<p align="center">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-2954BC?logo=typescript&logoColor=white" />
+  <img alt="Node" src="https://img.shields.io/badge/Node-%E2%89%A520-2954BC?logo=node.js&logoColor=white" />
+  <img alt="React" src="https://img.shields.io/badge/React-18-2954BC?logo=react&logoColor=white" />
+  <img alt="Fastify" src="https://img.shields.io/badge/Fastify-5-2954BC?logo=fastify&logoColor=white" />
+  <img alt="Prisma" src="https://img.shields.io/badge/Prisma-6-2954BC?logo=prisma&logoColor=white" />
+  <img alt="OpenAI" src="https://img.shields.io/badge/OpenAI-structured%20outputs-2954BC?logo=openai&logoColor=white" />
+</p>
 
 ---
 
