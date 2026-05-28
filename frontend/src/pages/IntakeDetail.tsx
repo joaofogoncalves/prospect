@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { intakesApi, type Intake } from "@/lib/api";
 import { Layout } from "@/components/Layout";
@@ -34,7 +34,6 @@ export default function IntakeDetail() {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
-  const autoTriggered = useRef<string | null>(null);
 
   const loadIntake = useCallback(async () => {
     if (!id) return;
@@ -66,18 +65,9 @@ export default function IntakeDetail() {
     loadIntake();
   }, [loadIntake]);
 
-  // Auto-run analysis once when an unanalyzed intake first loads.
-  useEffect(() => {
-    if (
-      intake &&
-      !intake.analyzedAt &&
-      !analyzing &&
-      autoTriggered.current !== intake.id
-    ) {
-      autoTriggered.current = intake.id;
-      runAnalyze();
-    }
-  }, [intake, analyzing, runAnalyze]);
+  // Analysis runs at creation time. Here it's manual: the empty state's
+  // "Generate analysis" button (for intakes saved without analysis) and the
+  // "Regenerate" action both call runAnalyze.
 
   return (
     <Layout>

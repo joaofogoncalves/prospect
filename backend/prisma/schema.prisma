@@ -30,12 +30,32 @@ model Intake {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // AI analysis output (null until analyzed). Arrays stored as JSON.
+  // Final AI analysis output (null until analyzed). Arrays stored as JSON.
   summary       String?
   tags          Json?
   riskChecklist Json?
   analyzedAt    DateTime?
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysisRequests IntakeAnalysisRequest[]
+}
+
+// One row per AI analysis attempt — kept for observability (response times,
+// which model/schema was used, the raw response). Trades disk for visibility.
+model IntakeAnalysisRequest {
+  id           String    @id @default(cuid())
+  intakeId     String
+  intake       Intake    @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  model        String
+  schema       Json // the JSON schema sent to the model
+  systemPrompt String
+  userPrompt   String
+  rawResponse  String? // raw content returned by the model (null on failure)
+  status       String // "success" | "error"
+  error        String?
+  startedAt    DateTime // when the request was issued
+  completedAt  DateTime? // when the response (or failure) returned
+  durationMs   Int? // completedAt - startedAt, for metrics
+  createdAt    DateTime  @default(now())
 }

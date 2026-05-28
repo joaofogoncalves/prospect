@@ -54,6 +54,36 @@ npm run dev:backend   # http://localhost:3000
 npm run dev:frontend  # http://localhost:5173
 ```
 
+## Running with Docker
+
+The whole stack runs from a single command — no local Node, Prisma, or build step
+needed, just Docker.
+
+```bash
+cp .env.example .env          # set JWT_SECRET (and OPENAI_API_KEY for AI analysis)
+docker compose up --build     # builds both images and starts everything
+```
+
+Then open **<http://localhost:8080>**. That's the only port exposed: nginx serves
+the built frontend and reverse-proxies `/api/*` to the backend over the internal
+Docker network, so there's no CORS hop and nothing hard-coded to `localhost`.
+
+| Concern | How it's handled |
+| --- | --- |
+| **Backend** | Multi-stage build → `node dist/index.js`. Migrations (`prisma migrate deploy`) run automatically on startup. |
+| **Frontend** | Built with Vite, served by nginx; calls the API same-origin (`/api`). |
+| **Database** | SQLite on the `intake-db` named volume (`/data/app.db`) — **survives `down`/`up` and container removal**. |
+| **Secrets** | `JWT_SECRET` / `OPENAI_API_KEY` are read from the root `.env` by Compose. |
+
+```bash
+docker compose up --build     # start (rebuild images)
+docker compose down           # stop & remove containers — DB volume is kept
+docker compose down -v        # also delete the database volume (fresh start)
+```
+
+> Compose overrides `DATABASE_URL` and `VITE_API_URL` for the containers, so those
+> two `.env` values only matter for the non-Docker (`npm run dev`) workflow.
+
 ## Useful scripts
 
 | Command | Description |

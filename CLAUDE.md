@@ -6,13 +6,14 @@ public overview.
 
 ## What this project is
 
-**Project Intake** — a small full-stack TypeScript app for capturing and managing
-project intake records. npm **workspaces** monorepo:
+**Project Intake** — a full-stack TypeScript app that captures project intake
+requests and uses AI to triage them (summary, tags, risk checklist). npm
+**workspaces** monorepo:
 
 - **`backend/`** — [Fastify 5](https://fastify.dev/) API (ESM) + [Prisma 6](https://www.prisma.io/) ORM over **SQLite**.
-- **`frontend/`** — [React 18](https://react.dev/) + [Vite 6](https://vite.dev/), Tailwind 4, shadcn-style UI.
-- **AI:** [OpenAI](https://platform.openai.com/) SDK — key is loaded but not yet wired into a route.
-- **Auth:** `@fastify/jwt` + `bcryptjs` present as deps; routes not yet implemented.
+- **`frontend/`** — [React 18](https://react.dev/) + [Vite 6](https://vite.dev/), Tailwind 4, shadcn-style UI, [React Router 7](https://reactrouter.com/).
+- **AI:** [OpenAI](https://platform.openai.com/) SDK — intake analysis via strict structured outputs (`backend/src/ai.ts`), run **on creation**; every call is logged to `IntakeAnalysisRequest` for observability. See [`docs/ai.md`](./docs/ai.md).
+- **Auth:** JWT (`@fastify/jwt`) + `bcryptjs` — register/login issue a token; intake routes are protected and **user-scoped**.
 
 ## Running it
 
@@ -52,13 +53,22 @@ Full workflow, smoke tests, and a known-good baseline:
 ## Layout & key files
 
 ```
-backend/src/index.ts       Server entry + all route definitions
-backend/src/db.ts          Prisma client singleton
-backend/src/env.ts         Loads the SINGLE root .env, validates required vars
-backend/prisma/schema.prisma   Data model (User, Project)
-frontend/src/App.tsx       Project list + create form
-docs/                      Living documentation (keep in sync — see below)
-.githooks/post-commit      Docs-sync reminder hook
+backend/src/index.ts             Server entry — registers CORS, auth plugin, route modules
+backend/src/auth.ts              JWT plugin + `authenticate` preHandler (sets request.user)
+backend/src/ai.ts                OpenAI analysis service (strict json_schema)
+backend/src/routes/auth.ts       register / login / me
+backend/src/routes/intakes.ts    protected, user-scoped intake CRUD + analyze
+backend/src/db.ts                Prisma client singleton
+backend/src/env.ts               Loads the SINGLE root .env, validates required vars
+backend/prisma/schema.prisma     Data model (User, Intake, IntakeAnalysisRequest)
+frontend/src/App.tsx             Routes: login / register / protected intake views
+frontend/src/pages/              Login, Register, IntakeList, IntakeDetail, IntakeCreate
+frontend/src/lib/auth.tsx        AuthProvider / useAuth (token in localStorage)
+frontend/src/lib/api.ts          fetch wrapper + intakes API
+frontend/src/lib/useQuery.ts     async data hook (loading / error / reload)
+frontend/src/components/states.tsx   shared Loading / Empty / Error UI
+docs/                            Living documentation (keep in sync — see below)
+.githooks/post-commit            Docs-sync reminder hook
 ```
 
 ## Conventions
@@ -69,6 +79,16 @@ docs/                      Living documentation (keep in sync — see below)
   `.js` extension (e.g. `import { env } from "./env.js"`) even though sources are `.ts`.
 - **Database changes** go through Prisma: edit `schema.prisma`, then
   `npm run db:migrate`. `backend/prisma/dev.db` is local and gitignored.
+- **Data is user-scoped.** Intake routes filter by `request.user.sub`, and
+  `POST /api/intakes` sets `userId` from the token — never trust a client-supplied
+  owner. New protected routes go through the `authenticate` preHandler.
+- **AI analysis runs on creation.** `POST /api/intakes` persists the intake first,
+  *then* calls OpenAI — so a failed analysis never loses the user's input. The
+  response carries `analysisError` (and `analyzedAt: null`) for a recoverable error
+  state; `POST /api/intakes/:id/analyze` is the retry/regenerate path. Analysis
+  degrades gracefully — `503` when `OPENAI_API_KEY` is unset, so the app still boots.
+- **Frontend async views** use `useQuery` + `components/states.tsx` for
+  loading/empty/error — reuse them instead of hand-rolling each state.
 - **Build before assuming types pass:** `npm run build` builds both workspaces.
 
 ## Testing
@@ -112,9 +132,11 @@ manually via `npm run setup:hooks`. Bypass a single commit with `SKIP_DOCS_CHECK
 
 | You changed… | Update… |
 | --- | --- |
-| Routes / payloads (`backend/src/index.ts`) | [`docs/api.md`](./docs/api.md) |
+| Routes / payloads (`backend/src/routes/`) | [`docs/api.md`](./docs/api.md) |
 | Data model (`schema.prisma`) | [`docs/architecture.md`](./docs/architecture.md) |
+| AI prompt / analysis schema (`backend/src/ai.ts`) | [`docs/ai.md`](./docs/ai.md) |
 | Scripts, env vars, setup | [`docs/development.md`](./docs/development.md) |
+| Frontend tests / helpers | [`docs/testing.md`](./docs/testing.md) |
 
 ## Recording decisions
 

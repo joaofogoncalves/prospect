@@ -17,15 +17,27 @@ export type IntakeInput = {
   industry: string;
 };
 
-// Raised when analysis cannot run/parse. Carries an HTTP status hint.
-export class AnalysisError extends Error {
-  status: number;
-  constructor(message: string, status = 502) {
-    super(message);
-    this.name = "AnalysisError";
-    this.status = status;
-  }
-}
+// Observability record for a single analysis attempt. Persisted by the route
+// layer into IntakeAnalysisRequest regardless of success/failure.
+export type AnalysisLog = {
+  model: string;
+  schema: unknown;
+  systemPrompt: string;
+  userPrompt: string;
+  rawResponse: string | null;
+  status: "success" | "error";
+  error: string | null;
+  startedAt: Date;
+  completedAt: Date;
+  durationMs: number;
+};
+
+// Outcome of an analysis attempt. `log` is present whenever a request was
+// actually issued (so it can be recorded); it's null for pre-flight failures
+// like a missing API key, where `status` carries an HTTP hint.
+export type AnalysisOutcome =
+  | { ok: true; analysis: IntakeAnalysis; log: AnalysisLog }
+  | { ok: false; status: number; error: string; log: AnalysisLog | null };
 
 // JSON Schema describing the structured output. Used both as the strict
 // `response_format` contract AND embedded in the prompt (per project spec).
@@ -37,7 +49,7 @@ const ANALYSIS_SCHEMA = {
   properties: {
     summary: {
       type: "string",
-      description: "A concise 2-3 sentence summary of the intake.",
+      description: "A concise 2-3 sentence summary of the project request.",
     },
     tags: {
       type: "array",
@@ -47,7 +59,7 @@ const ANALYSIS_SCHEMA = {
     riskChecklist: {
       type: "array",
       description:
-        "Bullet-style risk/diligence items to review for this intake.",
+        "Bullet-style delivery/diligence risk items to review for this project.",
       items: { type: "string" },
     },
   },
@@ -57,19 +69,28 @@ const ANALYSIS_SCHEMA = {
 
 const EXAMPLE: IntakeAnalysis = {
   summary:
-    "A mid-size municipal water utility is requesting funding to replace aging pipework across three districts. The work is well scoped with a 12-month timeline and a clearly bounded budget.",
-  tags: ["infrastructure", "municipal", "water-utility", "capital-improvement"],
+    "A global retailer wants a custom AI-powered demand-forecasting platform integrated with their existing SAP ERP. The scope is broad with a 9-month timeline and an enterprise-scale budget, implying a multi-team engagement with significant data and integration work.",
+  tags: ["ai-ml", "enterprise", "systems-integration", "data-platform"],
   riskChecklist: [
-    "Confirm the municipality's current credit rating and outstanding debt.",
-    "Verify environmental permits for the affected districts.",
-    "Assess contractor availability against the 12-month timeline.",
-    "Check whether the budget range includes contingency for material cost inflation.",
+    "Confirm access to and quality of the historical sales/inventory data needed for forecasting.",
+    "Clarify whether the 9-month timeline includes model evaluation, UAT, and production hardening.",
+    "Assess integration complexity and API availability of the legacy SAP ERP.",
+    "Verify the budget covers ongoing MLOps (retraining, monitoring) beyond initial delivery.",
+    "Identify data-privacy and compliance constraints for customer/transaction data.",
   ],
 };
 
+const SYSTEM_PROMPT =
+  "You are an analyst at a software development company that delivers large, " +
+  "custom software projects for enterprise customers, including AI-acceleration " +
+  "initiatives. You triage and evaluate incoming project requests to help the " +
+  "team decide how to staff and de-risk them. Produce concise, neutral, " +
+  "decision-useful analysis, and always respond with JSON matching the " +
+  "provided schema.";
+
 function buildUserPrompt(intake: IntakeInput): string {
   return [
-    "Analyze the following bond project intake request.",
+    "Analyze the following software development project intake request.",
     "",
     "Return JSON that conforms exactly to this JSON Schema:",
     JSON.stringify(ANALYSIS_SCHEMA, null, 2),
@@ -79,8 +100,8 @@ function buildUserPrompt(intake: IntakeInput): string {
     "",
     "Requirements:",
     "- summary: 2-3 sentences, factual, no marketing language.",
-    "- tags: at least 3 short lowercase tags (kebab-case where multi-word).",
-    "- riskChecklist: concrete, reviewable diligence items as short bullets.",
+    "- tags: at least 3 short lowercase tags (kebab-case where multi-word), e.g. technology, domain, or engagement type.",
+    "- riskChecklist: concrete, reviewable delivery/diligence items as short bullets.",
     "",
     "Intake:",
     `- Title: ${intake.title}`,
@@ -91,30 +112,61 @@ function buildUserPrompt(intake: IntakeInput): string {
   ].join("\n");
 }
 
-const SYSTEM_PROMPT =
-  "You are an analyst that triages bond project funding requests. You produce " +
-  "concise, neutral, decision-useful analysis and always respond with JSON " +
-  "matching the provided schema.";
-
-export async function analyzeIntake(
+// Run a single analysis attempt. Never throws for OpenAI/parse failures —
+// instead returns a structured outcome (with a log to persist) so the caller
+// can record metrics and surface a recoverable error.
+export async function performAnalysis(
   intake: IntakeInput,
-): Promise<IntakeAnalysis> {
+): Promise<AnalysisOutcome> {
   if (!env.openaiApiKey) {
-    throw new AnalysisError(
-      "OpenAI API key is not configured. Set OPENAI_API_KEY in your .env.",
-      503,
-    );
+    return {
+      ok: false,
+      status: 503,
+      error: "OpenAI API key is not configured. Set OPENAI_API_KEY in your .env.",
+      log: null,
+    };
   }
 
   const client = new OpenAI({ apiKey: env.openaiApiKey });
+  const userPrompt = buildUserPrompt(intake);
+  const startedAt = new Date();
 
-  let completion;
+  const baseLog = {
+    model: env.openaiModel,
+    schema: ANALYSIS_SCHEMA,
+    systemPrompt: SYSTEM_PROMPT,
+    userPrompt,
+    startedAt,
+  };
+
+  const fail = (
+    error: string,
+    rawResponse: string | null,
+    status = 502,
+  ): AnalysisOutcome => {
+    const completedAt = new Date();
+    return {
+      ok: false,
+      status,
+      error,
+      log: {
+        ...baseLog,
+        rawResponse,
+        status: "error",
+        error,
+        completedAt,
+        durationMs: completedAt.getTime() - startedAt.getTime(),
+      },
+    };
+  };
+
+  let rawResponse: string | null = null;
   try {
-    completion = await client.chat.completions.create({
+    const completion = await client.chat.completions.create({
       model: env.openaiModel,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: buildUserPrompt(intake) },
+        { role: "user", content: userPrompt },
       ],
       response_format: {
         type: "json_schema",
@@ -125,21 +177,21 @@ export async function analyzeIntake(
         },
       },
     });
+    rawResponse = completion.choices[0]?.message?.content ?? null;
   } catch (err) {
     const message = err instanceof Error ? err.message : "OpenAI request failed";
-    throw new AnalysisError(`OpenAI request failed: ${message}`);
+    return fail(`OpenAI request failed: ${message}`, null);
   }
 
-  const content = completion.choices[0]?.message?.content;
-  if (!content) {
-    throw new AnalysisError("OpenAI returned an empty response.");
+  if (!rawResponse) {
+    return fail("OpenAI returned an empty response.", null);
   }
 
   let parsed: IntakeAnalysis;
   try {
-    parsed = JSON.parse(content) as IntakeAnalysis;
+    parsed = JSON.parse(rawResponse) as IntakeAnalysis;
   } catch {
-    throw new AnalysisError("OpenAI returned invalid JSON.");
+    return fail("OpenAI returned invalid JSON.", rawResponse);
   }
 
   if (
@@ -147,8 +199,20 @@ export async function analyzeIntake(
     !Array.isArray(parsed.tags) ||
     !Array.isArray(parsed.riskChecklist)
   ) {
-    throw new AnalysisError("OpenAI response did not match the expected shape.");
+    return fail("OpenAI response did not match the expected shape.", rawResponse);
   }
 
-  return parsed;
+  const completedAt = new Date();
+  return {
+    ok: true,
+    analysis: parsed,
+    log: {
+      ...baseLog,
+      rawResponse,
+      status: "success",
+      error: null,
+      completedAt,
+      durationMs: completedAt.getTime() - startedAt.getTime(),
+    },
+  };
 }

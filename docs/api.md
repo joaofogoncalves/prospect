@@ -58,8 +58,6 @@ Return the authenticated user.
 - `200 OK` — `{ "id", "email", "name" }`
 - `401 Unauthorized` — missing/invalid token
 
-## Projects
-
 ## Intakes
 
 All intake routes are **protected** (🔒) and scoped to the authenticated user.
@@ -70,23 +68,23 @@ An intake object:
 ```json
 {
   "id": "clx...",
-  "title": "East span bridge repair bond",
-  "description": "Repair the east span...",
-  "budgetRange": "$1M – $2M",
-  "timeline": "6 months",
-  "industry": "Infrastructure",
+  "title": "Enterprise demand-forecasting platform",
+  "description": "Build a custom AI forecasting platform integrated with SAP...",
+  "budgetRange": "$2M – $4M",
+  "timeline": "9 months",
+  "industry": "Retail",
   "createdAt": "2026-05-28T19:35:22.000Z",
   "updatedAt": "2026-05-28T19:35:22.000Z",
-  "summary": null,
-  "tags": null,
-  "riskChecklist": null,
-  "analyzedAt": null,
+  "summary": "A retail enterprise wants ...",
+  "tags": ["ai-ml", "enterprise", "systems-integration"],
+  "riskChecklist": ["Confirm data access and quality.", "..."],
+  "analyzedAt": "2026-05-28T19:35:26.000Z",
   "userId": "..."
 }
 ```
 
-`summary`, `tags`, `riskChecklist`, and `analyzedAt` are `null` until the intake
-is analyzed (see below).
+`summary`, `tags`, `riskChecklist`, and `analyzedAt` are `null` until analysis
+succeeds (it runs automatically on creation — see below).
 
 ### `GET /api/intakes`  🔒
 List the current user's intakes, newest first (`orderBy: createdAt desc`).
@@ -97,27 +95,36 @@ Get one intake the user owns.
 - `404 Not Found` — `{ "error": "Intake not found" }`
 
 ### `POST /api/intakes`  🔒
-Create an intake. AI analysis is **not** run here — it's a separate step.
+Create an intake **and run AI analysis**. The intake is persisted *before* the
+OpenAI call, so a failed analysis never loses the user's input.
 
 **Request body** — all fields required (non-empty strings):
 ```json
 {
-  "title": "East span bridge repair bond",
-  "description": "Repair the east span of the river bridge.",
-  "budgetRange": "$1M – $2M",
-  "timeline": "6 months",
-  "industry": "Infrastructure"
+  "title": "Enterprise demand-forecasting platform",
+  "description": "Build a custom AI forecasting platform integrated with SAP.",
+  "budgetRange": "$2M – $4M",
+  "timeline": "9 months",
+  "industry": "Retail"
 }
 ```
 
 **Responses**
-- `201 Created` — the created intake
+- `201 Created` — the saved intake. On success, `summary`/`tags`/`riskChecklist`/
+  `analyzedAt` are populated.
+- `201 Created` **with `analysisError`** — the intake was saved but analysis
+  failed: `{ ...intake, "analyzedAt": null, "analysisError": "..." }`. The client
+  shows a recoverable error and can retry via the analyze endpoint below.
 - `400 Bad Request` — `{ "error": "Missing required fields: ..." }`
 - `401 Unauthorized` — missing/invalid token
 
+Every analysis attempt (here and below) is recorded in `IntakeAnalysisRequest`
+for observability — see [ai.md](./ai.md).
+
 ### `POST /api/intakes/:id/analyze`  🔒
-Run (or re-run) AI analysis and persist the result onto the intake. See
-[ai.md](./ai.md) for how the model is prompted.
+Re-run analysis for an existing intake (retry after a failed create, or
+regenerate). Persists the result onto the intake. See [ai.md](./ai.md) for how
+the model is prompted.
 
 **Responses**
 - `200 OK` — the updated intake with `summary`, `tags`, `riskChecklist`,
@@ -125,7 +132,6 @@ Run (or re-run) AI analysis and persist the result onto the intake. See
 - `404 Not Found` — `{ "error": "Intake not found" }`
 - `503 Service Unavailable` — `{ "error": "OpenAI API key is not configured..." }`
 - `502 Bad Gateway` — upstream OpenAI failure / invalid response
-- `500 Internal Server Error` — unexpected failure
 
 ## `GET /health`
 Health check (public).

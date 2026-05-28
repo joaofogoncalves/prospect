@@ -29,6 +29,33 @@ npm run dev:frontend   # http://localhost:5173
 
 The frontend calls the backend at `VITE_API_URL` (default `http://localhost:3000`).
 
+## Running with Docker
+
+For a production-style stack with one command (no local Node/Prisma needed):
+
+```bash
+cp .env.example .env          # JWT_SECRET is required; OPENAI_API_KEY optional
+docker compose up --build     # → http://localhost:8080
+```
+
+Topology and rationale are in [decisions.md #011](./decisions.md). The short version:
+
+- **Two images, multi-stage.** `backend/Dockerfile` compiles TS and runs on Node;
+  `frontend/Dockerfile` builds the SPA and serves it with **nginx**, which also
+  reverse-proxies `/api/*` to the backend. Only port **8080** is published.
+- **Same-origin frontend.** The image is built with `VITE_API_URL=""`, so the bundle
+  calls `/api/...` relative to its own origin and nginx forwards it — no CORS, no
+  baked-in hostname.
+- **Migrations on startup.** `backend/docker-entrypoint.sh` runs
+  `prisma migrate deploy` (idempotent) before launching the server.
+- **Persistent DB.** SQLite lives at `/data/app.db` on the `intake-db` named volume;
+  Compose sets `DATABASE_URL=file:/data/app.db`. It survives `docker compose down`;
+  use `docker compose down -v` to wipe it.
+
+Compose reads the root `.env` for `${JWT_SECRET}` / `${OPENAI_API_KEY}` substitution,
+but overrides `DATABASE_URL` and `VITE_API_URL` for the containers — so those two
+values in `.env` only affect the `npm run dev` workflow above.
+
 ## Scripts (root)
 
 | Command | Description |

@@ -67,11 +67,27 @@ export type IntakeInput = {
   industry: string;
 };
 
+// Creation runs AI analysis server-side. The intake is always persisted; if
+// analysis failed, the response carries `analysisError` (and `analyzedAt` is
+// null) so the client can offer a retry without re-entering data.
+export type CreatedIntake = Intake & { analysisError?: string };
+
 export const intakesApi = {
   list: () => api<Intake[]>("/api/intakes"),
   get: (id: string) => api<Intake>(`/api/intakes/${id}`),
   create: (input: IntakeInput) =>
-    api<Intake>("/api/intakes", { method: "POST", body: input }),
+    api<CreatedIntake>("/api/intakes", { method: "POST", body: input }),
   analyze: (id: string) =>
     api<Intake>(`/api/intakes/${id}/analyze`, { method: "POST" }),
+};
+
+// --- Auth (account management) ---
+
+export const authApi = {
+  // Resolves on 204; throws with the server message otherwise.
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api<null>("/api/auth/change-password", {
+      method: "POST",
+      body: { currentPassword, newPassword },
+    }),
 };

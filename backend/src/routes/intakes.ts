@@ -1,22 +1,62 @@
 import type { FastifyInstance } from "fastify";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
-import { analyzeIntake, AnalysisError } from "../ai.js";
+import { performAnalysis, type IntakeInput } from "../ai.js";
 
-type IntakeBody = {
-  title?: string;
-  description?: string;
-  budgetRange?: string;
-  timeline?: string;
-  industry?: string;
-};
+type IntakeBody = Partial<IntakeInput>;
 
-const FIELDS = [
+const FIELDS: (keyof IntakeInput)[] = [
   "title",
   "description",
   "budgetRange",
   "timeline",
   "industry",
-] as const;
+];
+
+type IntakeRecord = IntakeInput & { id: string };
+
+type AnalyzeResult =
+  | { ok: true; intake: Awaited<ReturnType<typeof prisma.intake.update>> }
+  | { ok: false; status: number; error: string };
+
+// Run analysis for an intake, record the attempt in IntakeAnalysisRequest
+// (success or failure), and on success persist the result onto the intake.
+async function analyzeAndLog(intake: IntakeRecord): Promise<AnalyzeResult> {
+  const outcome = await performAnalysis(intake);
+
+  if (outcome.log) {
+    await prisma.intakeAnalysisRequest.create({
+      data: {
+        intakeId: intake.id,
+        model: outcome.log.model,
+        schema: outcome.log.schema as Prisma.InputJsonValue,
+        systemPrompt: outcome.log.systemPrompt,
+        userPrompt: outcome.log.userPrompt,
+        rawResponse: outcome.log.rawResponse,
+        status: outcome.log.status,
+        error: outcome.log.error,
+        startedAt: outcome.log.startedAt,
+        completedAt: outcome.log.completedAt,
+        durationMs: outcome.log.durationMs,
+      },
+    });
+  }
+
+  if (!outcome.ok) {
+    return { ok: false, status: outcome.status, error: outcome.error };
+  }
+
+  const updated = await prisma.intake.update({
+    where: { id: intake.id },
+    data: {
+      summary: outcome.analysis.summary,
+      tags: outcome.analysis.tags,
+      riskChecklist: outcome.analysis.riskChecklist,
+      analyzedAt: new Date(),
+    },
+  });
+  return { ok: true, intake: updated };
+}
 
 export async function intakeRoutes(app: FastifyInstance) {
   // All intake routes require authentication and are scoped to the user.
@@ -42,7 +82,9 @@ export async function intakeRoutes(app: FastifyInstance) {
     },
   );
 
-  // Create an intake (core fields only; AI analysis is a separate step).
+  // Create an intake AND run AI analysis. The intake is persisted first, so a
+  // failed analysis never loses the user's input: we return 201 with the saved
+  // intake plus an `analysisError` the client can retry from.
   app.post<{ Body: IntakeBody }>("/api/intakes", async (request, reply) => {
     const body = request.body ?? {};
     const missing = FIELDS.filter((f) => !body[f]?.trim());
@@ -52,7 +94,7 @@ export async function intakeRoutes(app: FastifyInstance) {
         .send({ error: `Missing required fields: ${missing.join(", ")}` });
     }
 
-    const intake = await prisma.intake.create({
+    const created = await prisma.intake.create({
       data: {
         title: body.title!.trim(),
         description: body.description!.trim(),
@@ -62,10 +104,16 @@ export async function intakeRoutes(app: FastifyInstance) {
         userId: request.user.sub,
       },
     });
-    return reply.status(201).send(intake);
+
+    const result = await analyzeAndLog(created);
+    if (result.ok) {
+      return reply.status(201).send(result.intake);
+    }
+    // Intake is saved; analysis failed. Surface the error for retry.
+    return reply.status(201).send({ ...created, analysisError: result.error });
   });
 
-  // Run (or re-run) AI analysis for an intake and persist the result.
+  // Re-run AI analysis for an existing intake (retry / regenerate).
   app.post<{ Params: { id: string } }>(
     "/api/intakes/:id/analyze",
     async (request, reply) => {
@@ -74,25 +122,9 @@ export async function intakeRoutes(app: FastifyInstance) {
       });
       if (!intake) return reply.status(404).send({ error: "Intake not found" });
 
-      try {
-        const analysis = await analyzeIntake(intake);
-        const updated = await prisma.intake.update({
-          where: { id: intake.id },
-          data: {
-            summary: analysis.summary,
-            tags: analysis.tags,
-            riskChecklist: analysis.riskChecklist,
-            analyzedAt: new Date(),
-          },
-        });
-        return updated;
-      } catch (err) {
-        if (err instanceof AnalysisError) {
-          return reply.status(err.status).send({ error: err.message });
-        }
-        request.log.error(err);
-        return reply.status(500).send({ error: "Analysis failed" });
-      }
+      const result = await analyzeAndLog(intake);
+      if (result.ok) return result.intake;
+      return reply.status(result.status).send({ error: result.error });
     },
   );
 }

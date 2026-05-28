@@ -66,4 +66,46 @@ export async function authRoutes(app: FastifyInstance) {
       return publicUser(user);
     },
   );
+
+  // Change the current user's password (requires the current password). The
+  // client signs out afterwards, so any other sessions keep their old token
+  // until it expires — acceptable for this app.
+  app.post<{ Body: { currentPassword?: string; newPassword?: string } }>(
+    "/api/auth/change-password",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { currentPassword, newPassword } = request.body ?? {};
+      if (!currentPassword || !newPassword) {
+        return reply
+          .status(400)
+          .send({ error: "Current and new password are required" });
+      }
+      if (newPassword.length < 8) {
+        return reply
+          .status(400)
+          .send({ error: "Password must be at least 8 characters" });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: request.user.sub },
+      });
+      if (!user) return reply.status(404).send({ error: "User not found" });
+
+      if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
+        return reply.status(401).send({ error: "Current password is incorrect" });
+      }
+      if (currentPassword === newPassword) {
+        return reply
+          .status(400)
+          .send({ error: "New password must differ from the current one" });
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      });
+      return reply.status(204).send();
+    },
+  );
 }

@@ -1,0 +1,12 @@
+node_modules
+dist
+*.tsbuildinfo
+
+# Local SQLite database & journals — the container uses its own volume.
+prisma/*.db
+prisma/*.db-journal
+prisma/dev.db*
+
+.env
+*.log
+.DS_Store

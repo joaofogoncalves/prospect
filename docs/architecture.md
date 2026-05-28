@@ -65,9 +65,11 @@ project_intake/
    JWT and exposes `request.user` (`{ sub, email }`) to the handler.
 4. Route handlers use the shared Prisma client (`backend/src/db.ts`) to read and
    write the SQLite database; intake routes filter by `request.user.sub`.
-5. AI analysis (`POST /api/intakes/:id/analyze`) is a **separate step** from
-   creation: the intake is persisted first, then `backend/src/ai.ts` calls OpenAI
-   and the result is saved back onto the intake. See [ai.md](./ai.md).
+5. AI analysis runs **on creation**: `POST /api/intakes` persists the intake first,
+   then `backend/src/ai.ts` calls OpenAI and saves the result back. Persisting
+   first means a failed analysis never loses input — the response returns
+   `analysisError` for a recoverable retry (`POST /api/intakes/:id/analyze`). Every
+   attempt is logged to `IntakeAnalysisRequest`. See [ai.md](./ai.md).
 6. `backend/src/env.ts` loads the **single `.env` at the repo root** regardless of
    the current working directory, so backend and frontend share one config file.
 7. On the frontend, `lib/auth.tsx` stores the token (localStorage), hydrates the
@@ -80,11 +82,15 @@ Three protected views (`frontend/src/pages/`), each handling **loading**,
 `components/states.tsx`:
 
 - **IntakeList** (`/`) — list of the user's intakes; empty state prompts creation.
-- **IntakeCreate** (`/intakes/new`) — the 5-field form; on submit it persists the
-  intake and navigates to the detail view.
-- **IntakeDetail** (`/intakes/:id`) — core fields plus the AI analysis section,
-  which auto-runs analysis on first visit and has its own loading/empty/error
-  states and a regenerate action.
+- **IntakeCreate** (`/intakes/new`) — the 5-field form. On submit it creates the
+  intake (which analyzes it server-side). On success it navigates to the detail
+  view; if analysis failed, it shows a **recoverable error** — the intake is
+  already saved, so the user can **Retry analysis**, **Continue without analysis**,
+  or **Cancel** without re-entering anything.
+- **IntakeDetail** (`/intakes/:id`) — core fields plus the AI analysis section. It
+  no longer auto-runs (analysis happens at creation); it renders the stored
+  analysis with a **Regenerate** action, or an empty state with **Generate
+  analysis** for intakes saved without one — each with its own loading/error states.
 
 > A fourth UX state is intentionally deferred (TBD).
 
@@ -117,9 +123,29 @@ Defined in [`backend/prisma/schema.prisma`](../backend/prisma/schema.prisma).
 | `riskChecklist` | `Json?` | AI output; array of strings |
 | `analyzedAt` | `DateTime?` | set when analysis last ran |
 | `userId` | `String` | FK → `User`, `onDelete: Cascade` |
+| `analysisRequests` | `IntakeAnalysisRequest[]` | relation (audit log) |
 
 > SQLite has no array type; `tags` / `riskChecklist` use Prisma's `Json` columns
 > (stored as TEXT).
+
+### `IntakeAnalysisRequest`
+One row per AI analysis attempt — an observability/audit log (trades disk for
+visibility). The **final** analysis stays denormalized on `Intake`; this table
+captures how each attempt went. See [ai.md](./ai.md).
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `String` | `cuid()` primary key |
+| `intakeId` | `String` | FK → `Intake`, `onDelete: Cascade` |
+| `model` | `String` | model used (e.g. `gpt-4o-mini`) |
+| `schema` | `Json` | JSON schema sent to the model |
+| `systemPrompt` / `userPrompt` | `String` | exact prompts |
+| `rawResponse` | `String?` | raw model output (null on transport failure) |
+| `status` | `String` | `"success"` \| `"error"` |
+| `error` | `String?` | failure message |
+| `startedAt` / `completedAt` | `DateTime` / `DateTime?` | request timing |
+| `durationMs` | `Int?` | response time for metrics |
+| `createdAt` | `DateTime` | row creation time |
 
 Ownership is enforced server-side: `POST /api/intakes` sets `userId` from the
 authenticated token, and the read routes return only that user's intakes.
