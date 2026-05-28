@@ -19,6 +19,7 @@ export const env = {
   port: Number(process.env.PORT ?? 3000),
   host: process.env.HOST ?? "0.0.0.0",
   databaseUrl: required("DATABASE_URL"),
+  jwtSecret: required("JWT_SECRET"),
   // Read lazily where needed so the server can boot without an OpenAI key.
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
 };

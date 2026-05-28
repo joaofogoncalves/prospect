@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+#
+# post-commit — remind to update docs/ when watched source paths change.
+#
+# This hook is a *reminder only*. It runs after the commit is already recorded,
+# so it cannot block or amend; it just prints a warning when code changed without
+# a matching docs/ update in the same commit.
+#
+# Installed via `git config core.hooksPath .githooks` (run `npm run setup:hooks`,
+# or it happens automatically through the root package.json `prepare` script).
+#
+# To bypass intentionally:  SKIP_DOCS_CHECK=1 git commit ...
+
+set -euo pipefail
+
+[ "${SKIP_DOCS_CHECK:-0}" = "1" ] && exit 0
+
+# Source paths whose changes should be reflected in docs/.
+WATCHED=(
+  "backend/src"
+  "backend/prisma/schema.prisma"
+  "frontend/src"
+  "package.json"
+  "backend/package.json"
+  "frontend/package.json"
+  ".env.example"
+)
+
+# Files changed in the commit just made.
+changed="$(git diff-tree --no-commit-id --name-only -r HEAD)"
+[ -z "$changed" ] && exit 0
+
+source_changed=0
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  for w in "${WATCHED[@]}"; do
+    case "$file" in
+      "$w"|"$w"/*) source_changed=1 ;;
+    esac
+  done
+done <<< "$changed"
+
+docs_changed=0
+if grep -qE '^(docs/|CLAUDE\.md$|README\.md$)' <<< "$changed"; then
+  docs_changed=1
+fi
+
+if [ "$source_changed" = "1" ] && [ "$docs_changed" = "0" ]; then
+  yellow=$'\033[33m'; reset=$'\033[0m'
+  echo "${yellow}" >&2
+  echo "  ⚠  Docs reminder: this commit touched source code but no docs/ file." >&2
+  echo "     Update the relevant page(s) under docs/ (or README.md / CLAUDE.md):" >&2
+  echo "       • docs/architecture.md  — structure, data model, request flow" >&2
+  echo "       • docs/api.md           — endpoints and payloads" >&2
+  echo "       • docs/development.md    — setup, scripts, env vars" >&2
+  echo "" >&2
+  echo "     Then amend or add a follow-up commit. Bypass with SKIP_DOCS_CHECK=1." >&2
+  echo "${reset}" >&2
+fi
+
+exit 0

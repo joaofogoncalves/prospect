@@ -11,6 +11,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  projects     Project[]
+}
+
 model Project {
   id          String   @id @default(cuid())
   name        String
@@ -18,4 +27,6 @@ model Project {
   status      String   @default("intake")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
