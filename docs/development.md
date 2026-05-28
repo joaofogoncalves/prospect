@@ -29,6 +29,10 @@ npm run dev:frontend   # http://localhost:5173
 
 The frontend calls the backend at `VITE_API_URL` (default `http://localhost:3000`).
 
+> **Charts:** the dashboard uses **Recharts** (`frontend` dependency). It's
+> [lazy-loaded](../frontend/src/App.tsx) so its bundle only loads on `/dashboard`.
+> See [decisions.md#019](./decisions.md) and the styleguide §9.
+
 ## Running with Docker
 
 For a production-style stack with one command (no local Node/Prisma needed):
@@ -48,13 +52,17 @@ Topology and rationale are in [decisions.md #011](./decisions.md). The short ver
   baked-in hostname.
 - **Migrations on startup.** `backend/docker-entrypoint.sh` runs
   `prisma migrate deploy` (idempotent) before launching the server.
-- **Persistent DB.** SQLite lives at `/data/app.db` on the `intake-db` named volume;
+- **Persistent DB.** SQLite lives at `/data/app.db` on the `prospect-db` named volume;
   Compose sets `DATABASE_URL=file:/data/app.db`. It survives `docker compose down`;
   use `docker compose down -v` to wipe it.
 
-Compose reads the root `.env` for `${JWT_SECRET}` / `${OPENAI_API_KEY}` substitution,
-but overrides `DATABASE_URL` and `VITE_API_URL` for the containers — so those two
-values in `.env` only affect the `npm run dev` workflow above.
+The backend service loads the root `.env` directly via `env_file` — no variable
+names or secrets are duplicated in `docker-compose.yml`. It overrides only
+`DATABASE_URL` (to the volume path; the `.env` value points at the local dev DB) and,
+for the frontend, builds with `VITE_API_URL=""`. So those two values in `.env` only
+affect the `npm run dev` workflow above.
+
+> Note: duplicate keys in `.env` resolve **last-wins** when loaded as an `env_file`.
 
 ## Scripts (root)
 
@@ -63,8 +71,10 @@ values in `.env` only affect the `npm run dev` workflow above.
 | `npm run dev` | Run backend + frontend |
 | `npm run dev:backend` / `npm run dev:frontend` | Run one workspace |
 | `npm run build` | Build both workspaces |
-| `npm run db:migrate` | Create/apply a Prisma migration (dev) |
+| `npm run db:migrate` | Create/apply a Prisma migration (dev); re-seeds afterwards |
 | `npm run db:generate` | Regenerate the Prisma client |
+| `npm run db:seed` | Populate the dev DB with sample users + intakes |
+| `npm run db:reset` | Drop, re-migrate, and re-seed the DB (asks to confirm) |
 | `npm run db:studio` | Open Prisma Studio |
 | `npm run setup:hooks` | (Re)point git at `.githooks/` |
 
@@ -88,6 +98,23 @@ The whole app reads a **single `.env` at the repo root**. See
 - Run `npm run db:migrate` to create a migration and regenerate the client.
 - Inspect data with `npm run db:studio`.
 - `backend/prisma/dev.db` is local and gitignored.
+
+### Seed data
+
+[`backend/prisma/seed.ts`](../backend/prisma/seed.ts) populates the dev DB with
+five users and ~12 intakes spread across several years and industries — enough to
+exercise the collaborative list (mine vs. others), the per-creator filter, date
+sorting, and the "not analyzed yet" state (a few intakes are intentionally left
+un-analyzed so you can run analysis from the UI). The analyzed ones carry baked-in
+results (no live OpenAI call), so seeding needs no API key.
+
+- **All seeded users share the password `password123`** — log in as
+  `you@example.com` (or any of the others) to view the list from their seat.
+- The seed is **destructive and idempotent**: it clears users/intakes and recreates
+  a fixed dataset (stable ids), so re-running always lands on the same state.
+- It runs **automatically** after `npm run db:migrate` and `npm run db:reset` (wired
+  via the `prisma.seed` config in `backend/package.json`), and **on demand** via
+  `npm run db:seed`. `db:reset` prompts before wiping.
 
 ## Git hooks — keeping docs in sync
 
