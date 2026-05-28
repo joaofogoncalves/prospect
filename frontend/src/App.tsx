@@ -2,7 +2,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
-import Dashboard from "@/pages/Dashboard";
+import IntakeList from "@/pages/IntakeList";
+import IntakeCreate from "@/pages/IntakeCreate";
+import IntakeDetail from "@/pages/IntakeDetail";
 import type { ReactNode } from "react";
 
 // Redirects unauthenticated users to the login screen.
@@ -48,7 +50,23 @@ export default function App() {
         path="/"
         element={
           <RequireAuth>
-            <Dashboard />
+            <IntakeList />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/intakes/new"
+        element={
+          <RequireAuth>
+            <IntakeCreate />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/intakes/:id"
+        element={
+          <RequireAuth>
+            <IntakeDetail />
           </RequireAuth>
         }
       />

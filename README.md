@@ -69,8 +69,13 @@ npm run dev:frontend  # http://localhost:5173
 | Method | Route | Description |
 | --- | --- | --- |
 | `GET` | `/health` | Health check |
-| `GET` | `/api/projects` | List projects |
-| `POST` | `/api/projects` | Create a project (`{ name, description? }`) |
+| `POST` | `/api/auth/register` · `/api/auth/login` | Auth (returns a JWT) |
+| `GET` | `/api/intakes` | List the user's intakes |
+| `POST` | `/api/intakes` | Create an intake |
+| `GET` | `/api/intakes/:id` | Get one intake |
+| `POST` | `/api/intakes/:id/analyze` | Run AI analysis (summary, tags, risk checklist) |
+
+See [`docs/api.md`](./docs/api.md) and [`docs/ai.md`](./docs/ai.md) for details.
 
 ## Environment variables
 

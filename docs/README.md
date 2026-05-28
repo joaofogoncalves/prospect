@@ -6,9 +6,11 @@ matching docs update (see [`.githooks/post-commit`](../.githooks/post-commit)).
 
 | Doc | Contents |
 | --- | --- |
-| [architecture.md](./architecture.md) | Stack, repo layout, request flow, data model |
+| [architecture.md](./architecture.md) | Stack, repo layout, request flow, data model, views |
 | [api.md](./api.md) | HTTP endpoints and payloads |
+| [ai.md](./ai.md) | Intake AI analysis: prompt, schema, error handling |
 | [development.md](./development.md) | Setup, running, scripts, environment variables |
+| [preview-and-verification.md](./preview-and-verification.md) | Live dev servers + driving Playwright to verify the UI |
 
 > The repo-root [`README.md`](../README.md) is the short public overview.
 > [`CLAUDE.md`](../CLAUDE.md) is guidance for working in this repo with Claude Code.

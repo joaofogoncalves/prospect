@@ -48,7 +48,8 @@ The whole app reads a **single `.env` at the repo root**. See
 
 | Variable | Description |
 | --- | --- |
-| `OPENAI_API_KEY` | OpenAI API key (loaded lazily; server boots without it) |
+| `OPENAI_API_KEY` | OpenAI API key (loaded lazily; server boots without it, but `analyze` returns 503 until set) |
+| `OPENAI_MODEL` | Model for intake analysis; default `gpt-4o-mini` (must support structured outputs) |
 | `DATABASE_URL` | Prisma SQLite connection string; relative paths resolve from `backend/prisma/` |
 | `PORT` / `HOST` | Backend server bind address |
 | `JWT_SECRET` | Secret used to sign JWTs |

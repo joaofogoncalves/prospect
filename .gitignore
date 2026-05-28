@@ -42,3 +42,10 @@ coverage/
 # Vite
 frontend/dist/
 .vite/
+
+# Playwright (MCP browser checks: traces, snapshots, screenshots)
+.playwright-mcp/
+test-results/
+playwright-report/
+*-snapshot.png
+login-initial.png

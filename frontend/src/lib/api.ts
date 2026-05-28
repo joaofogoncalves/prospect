@@ -41,3 +41,37 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 
   return data as T;
 }
+
+// --- Intakes ---
+
+export type Intake = {
+  id: string;
+  title: string;
+  description: string;
+  budgetRange: string;
+  timeline: string;
+  industry: string;
+  createdAt: string;
+  updatedAt: string;
+  summary: string | null;
+  tags: string[] | null;
+  riskChecklist: string[] | null;
+  analyzedAt: string | null;
+};
+
+export type IntakeInput = {
+  title: string;
+  description: string;
+  budgetRange: string;
+  timeline: string;
+  industry: string;
+};
+
+export const intakesApi = {
+  list: () => api<Intake[]>("/api/intakes"),
+  get: (id: string) => api<Intake>(`/api/intakes/${id}`),
+  create: (input: IntakeInput) =>
+    api<Intake>("/api/intakes", { method: "POST", body: input }),
+  analyze: (id: string) =>
+    api<Intake>(`/api/intakes/${id}/analyze`, { method: "POST" }),
+};

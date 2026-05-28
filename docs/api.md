@@ -60,42 +60,72 @@ Return the authenticated user.
 
 ## Projects
 
-All project routes are **protected** (🔒) and scoped to the authenticated user.
+## Intakes
 
-### `GET /api/projects`  🔒
-List the current user's projects, newest first (`orderBy: createdAt desc`).
+All intake routes are **protected** (🔒) and scoped to the authenticated user.
+Defined in [`backend/src/routes/intakes.ts`](../backend/src/routes/intakes.ts).
+
+An intake object:
 
 ```json
-[
-  {
-    "id": "clx...",
-    "name": "Acme rebrand",
-    "description": null,
-    "status": "intake",
-    "createdAt": "2026-05-28T19:21:13.000Z",
-    "updatedAt": "2026-05-28T19:21:13.000Z",
-    "userId": "..."
-  }
-]
+{
+  "id": "clx...",
+  "title": "East span bridge repair bond",
+  "description": "Repair the east span...",
+  "budgetRange": "$1M – $2M",
+  "timeline": "6 months",
+  "industry": "Infrastructure",
+  "createdAt": "2026-05-28T19:35:22.000Z",
+  "updatedAt": "2026-05-28T19:35:22.000Z",
+  "summary": null,
+  "tags": null,
+  "riskChecklist": null,
+  "analyzedAt": null,
+  "userId": "..."
+}
 ```
 
-### `POST /api/projects`  🔒
-Create a project owned by the current user (`userId` is taken from the token).
+`summary`, `tags`, `riskChecklist`, and `analyzedAt` are `null` until the intake
+is analyzed (see below).
 
-**Request body**
+### `GET /api/intakes`  🔒
+List the current user's intakes, newest first (`orderBy: createdAt desc`).
+
+### `GET /api/intakes/:id`  🔒
+Get one intake the user owns.
+- `200 OK` — the intake object
+- `404 Not Found` — `{ "error": "Intake not found" }`
+
+### `POST /api/intakes`  🔒
+Create an intake. AI analysis is **not** run here — it's a separate step.
+
+**Request body** — all fields required (non-empty strings):
 ```json
-{ "name": "Acme rebrand", "description": "Optional text" }
+{
+  "title": "East span bridge repair bond",
+  "description": "Repair the east span of the river bridge.",
+  "budgetRange": "$1M – $2M",
+  "timeline": "6 months",
+  "industry": "Infrastructure"
+}
 ```
-
-| Field | Required | Notes |
-| --- | --- | --- |
-| `name` | yes | returns `400 { "error": "name is required" }` if missing |
-| `description` | no | |
 
 **Responses**
-- `201 Created` — the created project object
-- `400 Bad Request` — `{ "error": "name is required" }`
+- `201 Created` — the created intake
+- `400 Bad Request` — `{ "error": "Missing required fields: ..." }`
 - `401 Unauthorized` — missing/invalid token
+
+### `POST /api/intakes/:id/analyze`  🔒
+Run (or re-run) AI analysis and persist the result onto the intake. See
+[ai.md](./ai.md) for how the model is prompted.
+
+**Responses**
+- `200 OK` — the updated intake with `summary`, `tags`, `riskChecklist`,
+  `analyzedAt` populated
+- `404 Not Found` — `{ "error": "Intake not found" }`
+- `503 Service Unavailable` — `{ "error": "OpenAI API key is not configured..." }`
+- `502 Bad Gateway` — upstream OpenAI failure / invalid response
+- `500 Internal Server Error` — unexpected failure
 
 ## `GET /health`
 Health check (public).
@@ -109,9 +139,3 @@ Health check (public).
 `@fastify/cors` is registered with `origin: true`, reflecting the request origin.
 Tighten this before deploying to production.
 
-## Not yet implemented
-
-Dependencies exist but no routes are wired up for:
-- **AI** — `openai` SDK (`OPENAI_API_KEY` is loaded but unused)
-
-Update this page as these endpoints are added.

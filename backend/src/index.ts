@@ -4,7 +4,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { authPlugin } from "./auth.js";
 import { authRoutes } from "./routes/auth.js";
-import { projectRoutes } from "./routes/projects.js";
+import { intakeRoutes } from "./routes/intakes.js";
 
 const app = Fastify({ logger: true });
 
@@ -15,7 +15,7 @@ await app.register(authPlugin);
 app.get("/health", async () => ({ status: "ok" }));
 
 await app.register(authRoutes);
-await app.register(projectRoutes);
+await app.register(intakeRoutes);
 
 const start = async () => {
   try {

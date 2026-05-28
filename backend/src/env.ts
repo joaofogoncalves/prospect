@@ -22,4 +22,5 @@ export const env = {
   jwtSecret: required("JWT_SECRET"),
   // Read lazily where needed so the server can boot without an OpenAI key.
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
+  openaiModel: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
 };

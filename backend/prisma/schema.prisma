@@ -12,21 +12,30 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
+  id           String   @id @default(cuid())
+  email        String   @unique
   name         String?
   passwordHash String
-  createdAt    DateTime  @default(now())
-  projects     Project[]
+  createdAt    DateTime @default(now())
+  intakes      Intake[]
 }
 
-model Project {
+model Intake {
   id          String   @id @default(cuid())
-  name        String
-  description String?
-  status      String   @default("intake")
+  title       String
+  description String
+  budgetRange String
+  timeline    String
+  industry    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // AI analysis output (null until analyzed). Arrays stored as JSON.
+  summary       String?
+  tags          Json?
+  riskChecklist Json?
+  analyzedAt    DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

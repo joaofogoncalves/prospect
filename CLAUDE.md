@@ -27,6 +27,28 @@ npm run dev                # backend (:3000) + frontend (:5173) together
 Run one side with `npm run dev:backend` / `npm run dev:frontend`. Full details,
 scripts, and env-var reference: [`docs/development.md`](./docs/development.md).
 
+## Live preview & verifying the UI
+
+Frontend runs at <http://localhost:5173> (Vite HMR), backend at <http://localhost:3000>
+(`tsx watch`) — both hot-reload, so you can watch the app build live. Run them in the
+background so you can keep working:
+
+```bash
+npm run dev:backend  > /tmp/pi_backend.log  2>&1 &
+npm run dev:frontend > /tmp/pi_frontend.log 2>&1 &
+lsof -iTCP:3000 -iTCP:5173 -sTCP:LISTEN -P   # confirm both are listening
+```
+
+To **verify the running UI in a real browser**, use the `playwright` plugin's MCP
+tools (`mcp__plugin_playwright_playwright__browser_*`; run `/reload-plugins` if absent):
+`browser_navigate` → `browser_snapshot` (decide actions) → drive with
+`browser_click`/`browser_type`/`browser_fill_form` → `browser_take_screenshot` (Read the
+PNG) → `browser_console_messages` (catch errors). Check behavior against
+[`docs/api.md`](./docs/api.md). Artifacts land in `.playwright-mcp/` (gitignored).
+
+Full workflow, smoke tests, and a known-good baseline:
+[`docs/preview-and-verification.md`](./docs/preview-and-verification.md).
+
 ## Layout & key files
 
 ```
