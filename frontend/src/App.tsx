@@ -1,11 +1,16 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import IntakeList from "@/pages/IntakeList";
 import IntakeCreate from "@/pages/IntakeCreate";
 import IntakeDetail from "@/pages/IntakeDetail";
-import type { ReactNode } from "react";
+import Profile from "@/pages/Profile";
+
+// Lazy-loaded so the Recharts/d3 bundle only loads when the dashboard is opened,
+// keeping the list/detail/auth views light.
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
 
 // Redirects unauthenticated users to the login screen.
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -51,6 +56,30 @@ export default function App() {
         element={
           <RequireAuth>
             <IntakeList />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <RequireAuth>
+            <Suspense
+              fallback={
+                <div className="flex min-h-svh items-center justify-center text-muted-foreground">
+                  Loading…
+                </div>
+              }
+            >
+              <Dashboard />
+            </Suspense>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <RequireAuth>
+            <Profile />
           </RequireAuth>
         }
       />

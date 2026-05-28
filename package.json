@@ -1,8 +1,8 @@
 {
-  "name": "project-intake",
+  "name": "prospect",
   "version": "0.1.0",
   "private": true,
-  "description": "Project intake app — Fastify + Prisma/SQLite backend and React + Vite frontend.",
+  "description": "Prospect — capture incoming project requests and triage them with AI. Fastify + Prisma/SQLite backend, React + Vite frontend.",
   "type": "module",
   "workspaces": [
     "backend",
@@ -19,6 +19,8 @@
     "test:e2e": "npm run test:e2e --workspace=frontend",
     "db:generate": "npm run db:generate --workspace=backend",
     "db:migrate": "npm run db:migrate --workspace=backend",
+    "db:reset": "npm run db:reset --workspace=backend",
+    "db:seed": "npm run db:seed --workspace=backend",
     "db:studio": "npm run db:studio --workspace=backend"
   },
   "engines": {

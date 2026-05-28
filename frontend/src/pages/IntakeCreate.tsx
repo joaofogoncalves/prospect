@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { AlertCircle } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { AlertCircle, ArrowLeft } from "lucide-react";
 import { intakesApi, type IntakeInput } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
-import { LoadingState } from "@/components/states";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -25,133 +25,54 @@ const EMPTY: IntakeInput = {
   industry: "",
 };
 
-type Phase = "form" | "working" | "error";
-
 export default function IntakeCreate() {
   const navigate = useNavigate();
   const [form, setForm] = useState<IntakeInput>(EMPTY);
-  const [phase, setPhase] = useState<Phase>("form");
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Set once the intake is persisted; lets us retry analysis without re-creating
-  // (and without the user re-entering anything).
-  const [savedId, setSavedId] = useState<string | null>(null);
 
   function update<K extends keyof IntakeInput>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  // Create the intake (server also runs analysis). Used for the initial submit
-  // and for retrying when creation itself failed.
-  async function submitCreate(e?: React.FormEvent) {
-    e?.preventDefault();
+  // Create the intake, then hand off to the detail view. Analysis runs as a
+  // background job server-side, so creation returns immediately (status
+  // "processing") — the detail page shows the live analysis and offers retry.
+  // On a creation failure the form (and entered values) stay intact.
+  async function submitCreate(e: React.FormEvent) {
+    e.preventDefault();
     setError(null);
-    setPhase("working");
+    setSubmitting(true);
     try {
       const intake = await intakesApi.create(form);
-      if (intake.analyzedAt) {
-        navigate(`/intakes/${intake.id}`); // created + analyzed
-        return;
-      }
-      // Intake saved, but analysis failed — recoverable, no data lost.
-      setSavedId(intake.id);
-      setError(intake.analysisError ?? "AI analysis failed.");
-      setPhase("error");
+      navigate(`/intakes/${intake.id}`);
     } catch (err) {
-      // Creation itself failed; the form values are still intact.
       setError(err instanceof Error ? err.message : "Failed to create intake");
-      setPhase("error");
+      setSubmitting(false);
     }
   }
 
-  // Retry analysis for an already-saved intake.
-  async function retryAnalysis() {
-    if (!savedId) return;
-    setError(null);
-    setPhase("working");
-    try {
-      await intakesApi.analyze(savedId);
-      navigate(`/intakes/${savedId}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
-      setPhase("error");
-    }
-  }
-
-  // Working: creating and/or analyzing.
-  if (phase === "working") {
-    return (
-      <Layout>
-        <Card className="mx-auto max-w-2xl">
-          <CardHeader>
-            <CardTitle>
-              {savedId ? "Re-running analysis…" : "Creating intake…"}
-            </CardTitle>
-            <CardDescription>
-              Generating an AI summary, tags, and risk checklist. This can take a
-              few seconds.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <LoadingState rows={2} />
-          </CardContent>
-        </Card>
-      </Layout>
-    );
-  }
-
-  // Error after the intake was saved: offer retry / continue / cancel.
-  if (phase === "error" && savedId) {
-    return (
-      <Layout>
-        <Card className="mx-auto max-w-2xl">
-          <CardHeader>
-            <CardTitle>Intake saved — analysis failed</CardTitle>
-            <CardDescription>
-              Your intake <strong>“{form.title}”</strong> was saved. The AI
-              analysis didn’t complete, but nothing you entered was lost.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div
-              role="alert"
-              className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4"
-            >
-              <AlertCircle className="mt-0.5 size-5 shrink-0 text-destructive" />
-              <p className="text-sm text-muted-foreground">{error}</p>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => navigate("/")}>
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/intakes/${savedId}`)}
-            >
-              Continue without analysis
-            </Button>
-            <Button onClick={retryAnalysis}>Retry analysis</Button>
-          </CardFooter>
-        </Card>
-      </Layout>
-    );
-  }
-
-  // Default: the form (also shown when creation itself failed, values intact).
   return (
     <Layout>
       <div className="mb-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-          ← Back to intakes
-        </Button>
+        <Link
+          to="/"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "text-muted-foreground",
+          )}
+        >
+          <ArrowLeft aria-hidden="true" />
+          Back to intakes
+        </Link>
       </div>
 
-      <Card className="mx-auto max-w-2xl">
+      <Card key="form" className="pi-phase-enter mx-auto max-w-2xl">
         <CardHeader>
           <CardTitle>New intake</CardTitle>
           <CardDescription>
-            We’ll generate an AI summary, tags, and a risk checklist when you
-            create it.
+            We’ll generate an AI summary, tags, and a risk checklist right after
+            you create it.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -213,7 +134,7 @@ export default function IntakeCreate() {
               />
             </div>
 
-            {phase === "error" && error && (
+            {error && (
               <div
                 role="alert"
                 className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4"
@@ -228,8 +149,8 @@ export default function IntakeCreate() {
           <Button type="button" variant="outline" onClick={() => navigate("/")}>
             Cancel
           </Button>
-          <Button type="submit" form="intake-form">
-            {phase === "error" ? "Try again" : "Create intake"}
+          <Button type="submit" form="intake-form" disabled={submitting}>
+            {submitting ? "Creating…" : error ? "Try again" : "Create intake"}
           </Button>
         </CardFooter>
       </Card>

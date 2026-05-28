@@ -34,10 +34,26 @@ export type AnalysisLog = {
 
 // Outcome of an analysis attempt. `log` is present whenever a request was
 // actually issued (so it can be recorded); it's null for pre-flight failures
-// like a missing API key, where `status` carries an HTTP hint.
+// like a missing API key, where `status` carries an HTTP hint. `retryable`
+// tells the orchestrator (routes/intakes.ts) whether re-running this same
+// attempt could plausibly succeed (transient transport/output failures) or is
+// pointless (missing key, 4xx client/config errors).
 export type AnalysisOutcome =
   | { ok: true; analysis: IntakeAnalysis; log: AnalysisLog }
-  | { ok: false; status: number; error: string; log: AnalysisLog | null };
+  | {
+      ok: false;
+      status: number;
+      error: string;
+      retryable: boolean;
+      log: AnalysisLog | null;
+    };
+
+// How long to wait on a single OpenAI request before giving up (the SDK default
+// is 10 minutes — far too long for a background job we want to bound). The SDK
+// also retries transient transport errors (429/5xx/network/timeout) with
+// exponential backoff up to `maxRetries` within one attempt.
+const REQUEST_TIMEOUT_MS = 30_000;
+const SDK_MAX_RETRIES = 2;
 
 // JSON Schema describing the structured output. Used both as the strict
 // `response_format` contract AND embedded in the prompt (per project spec).
@@ -123,11 +139,17 @@ export async function performAnalysis(
       ok: false,
       status: 503,
       error: "OpenAI API key is not configured. Set OPENAI_API_KEY in your .env.",
+      // A missing key won't fix itself between retries — terminal.
+      retryable: false,
       log: null,
     };
   }
 
-  const client = new OpenAI({ apiKey: env.openaiApiKey });
+  const client = new OpenAI({
+    apiKey: env.openaiApiKey,
+    maxRetries: SDK_MAX_RETRIES,
+    timeout: REQUEST_TIMEOUT_MS,
+  });
   const userPrompt = buildUserPrompt(intake);
   const startedAt = new Date();
 
@@ -143,12 +165,14 @@ export async function performAnalysis(
     error: string,
     rawResponse: string | null,
     status = 502,
+    retryable = true,
   ): AnalysisOutcome => {
     const completedAt = new Date();
     return {
       ok: false,
       status,
       error,
+      retryable,
       log: {
         ...baseLog,
         rawResponse,
@@ -180,7 +204,14 @@ export async function performAnalysis(
     rawResponse = completion.choices[0]?.message?.content ?? null;
   } catch (err) {
     const message = err instanceof Error ? err.message : "OpenAI request failed";
-    return fail(`OpenAI request failed: ${message}`, null);
+    const status = (err as { status?: number } | null)?.status;
+    // 4xx other than 429 (bad request, auth, not found) are client/config
+    // errors that won't change on retry. Everything else — 429, 5xx, and
+    // network/timeout failures the SDK already exhausted — may still be a
+    // transient outage worth another attempt.
+    const terminal =
+      typeof status === "number" && status >= 400 && status < 500 && status !== 429;
+    return fail(`OpenAI request failed: ${message}`, null, status ?? 502, !terminal);
   }
 
   if (!rawResponse) {

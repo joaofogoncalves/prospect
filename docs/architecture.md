@@ -1,6 +1,6 @@
 # Architecture
 
-Project Intake is a small full-stack TypeScript app for capturing and managing
+Prospect is a small full-stack TypeScript app for capturing and managing
 project intake records. It is an **npm workspaces** monorepo with two packages.
 
 ## Stack

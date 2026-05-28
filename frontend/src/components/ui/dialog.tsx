@@ -16,7 +16,7 @@ function DialogContent({
     <DialogPrimitive.Portal>
       <DialogPrimitive.Backdrop
         className={cn(
-          "fixed inset-0 z-50 bg-black/50 transition-opacity",
+          "fixed inset-0 z-50 bg-black/50 transition-opacity duration-150",
           "data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
         )}
       />
@@ -25,7 +25,7 @@ function DialogContent({
         className={cn(
           "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2",
           "rounded-xl border bg-card p-6 text-card-foreground shadow-lg outline-none",
-          "transition-all data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
+          "transition-[transform,opacity] duration-200 ease-out data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
           className,
         )}
         {...props}

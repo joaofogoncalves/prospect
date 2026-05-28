@@ -106,6 +106,35 @@ To mock another endpoint, add a queue + route in
 [`e2e/fixtures.ts`](../frontend/e2e/fixtures.ts) following the `login`/`intakes`
 pattern.
 
+## Testing pages with charts (Recharts)
+
+Recharts measures its container with `ResizeObserver` and `ResponsiveContainer`
+reports **0×0 in jsdom**, so chart internals never render. Two pieces make chart
+pages testable (see `pages/Dashboard.test.tsx`):
+
+- A `ResizeObserver` no-op shim lives in `src/test/setup.ts` (global, harmless
+  elsewhere).
+- **Mock `ResponsiveContainer`** in the test file to a fixed-size wrapper that passes
+  concrete `width`/`height` to its child, so the chart mounts:
+  ```ts
+  vi.mock("recharts", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("recharts")>();
+    const React = await import("react");
+    return {
+      ...actual,
+      ResponsiveContainer: ({ children }: { children: React.ReactElement }) =>
+        React.createElement("div", { style: { width: 800, height: 400 } },
+          React.cloneElement(children, { width: 800, height: 400 })),
+    };
+  });
+  ```
+
+Assert on **real DOM** — KPI numbers, section titles, the leaderboard table rows, the
+export buttons — never on chart pixels. The leaderboard table is the accessible
+source of truth, so it's also what the test reads. Don't try to assert a PNG download
+in jsdom (it can't rasterize the SVG); test the pure export helpers directly instead
+(`lib/exportData.test.ts`).
+
 ## Conventions
 
 - **Query by role/label**, not CSS — `getByRole("alert")`, `getByLabel("Email")`.

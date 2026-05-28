@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { LogoMark } from "@/components/LogoMark";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -64,7 +66,11 @@ export function AuthForm({ mode }: { mode: Mode }) {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background p-4">
+    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-4">
+      <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+        <LogoMark size={24} className="text-primary" />
+        <span>Prospect</span>
+      </div>
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>{t.title}</CardTitle>
@@ -124,11 +130,21 @@ export function AuthForm({ mode }: { mode: Mode }) {
             className="w-full"
             disabled={submitting}
           >
-            {submitting ? "Please wait…" : t.submit}
+            {submitting ? (
+              <>
+                <Loader2 className="animate-spin" />
+                Please wait…
+              </>
+            ) : (
+              t.submit
+            )}
           </Button>
           <p className="text-sm text-muted-foreground">
             {t.altText}{" "}
-            <Link to={t.altHref} className="font-medium text-foreground underline">
+            <Link
+              to={t.altHref}
+              className="font-medium text-primary underline underline-offset-4 hover:no-underline"
+            >
               {t.altLink}
             </Link>
           </p>

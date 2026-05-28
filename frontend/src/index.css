@@ -55,7 +55,8 @@
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
+    /* Brand accent — indigo. Carries primary buttons, links, and focus rings. */
+    --primary: oklch(0.48 0.17 264);
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
@@ -66,7 +67,7 @@
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --ring: oklch(0.55 0.17 264);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -90,8 +91,9 @@
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(0.205 0 0);
     --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
+    /* Brand accent — lighter indigo so it reads on the dark surface. */
+    --primary: oklch(0.68 0.16 264);
+    --primary-foreground: oklch(0.18 0.02 264);
     --secondary: oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.269 0 0);
@@ -101,7 +103,7 @@
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
+    --ring: oklch(0.68 0.16 264);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -127,4 +129,78 @@
   html {
     @apply font-sans;
     }
+
+  /* Clickable affordances use the pointer cursor. shadcn / base-ui follow the
+     native <button> default (the arrow), which reads as not-clickable. Disabled
+     controls keep `pointer-events-none`, so they don't pick this up. Elements
+     with an explicit cursor utility (e.g. menu items) win over this base rule. */
+  button:not(:disabled),
+  [role="button"],
+  [role="menuitem"],
+  a[href],
+  select:not(:disabled) {
+    cursor: pointer;
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion: the logo mark draws itself while AI analysis runs, plus a   */
+/* couple of gentle entrance animations. All respect reduced-motion    */
+/* via the global override at the bottom of this file.                 */
+/* ------------------------------------------------------------------ */
+
+/* Each line "draws" in (dashoffset → 0), staggered, then the verdict
+   diamond pops; afterwards everything breathes to signal ongoing work. */
+@keyframes pi-line-1 { 0% { stroke-dashoffset: 28; opacity: .3 } 30%,100% { stroke-dashoffset: 0; opacity: 1 } }
+@keyframes pi-line-2 { 0%,15% { stroke-dashoffset: 21; opacity: 0 } 45%,100% { stroke-dashoffset: 0; opacity: 1 } }
+@keyframes pi-line-3 { 0%,30% { stroke-dashoffset: 13; opacity: 0 } 60%,100% { stroke-dashoffset: 0; opacity: 1 } }
+@keyframes pi-diamond { 0%,55% { opacity: 0; transform: scale(.6) } 75% { opacity: .9; transform: scale(1.1) } 100% { opacity: .9; transform: scale(1) } }
+@keyframes pi-breathe { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+@keyframes pi-fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pi-phase-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: translateY(0) } }
+
+.pi-page-enter { animation: pi-fade-in 180ms ease-out both; }
+.pi-phase-enter { animation: pi-phase-in 220ms ease-out both; }
+
+.pi-logo-animate .pi-l1 { animation: pi-line-1 1.6s ease-out forwards, pi-breathe 2.4s 1.6s ease-in-out infinite; }
+.pi-logo-animate .pi-l2 { animation: pi-line-2 1.6s ease-out forwards, pi-breathe 2.4s 1.6s ease-in-out infinite; }
+.pi-logo-animate .pi-l3 { animation: pi-line-3 1.6s ease-out forwards, pi-breathe 2.4s 1.6s ease-in-out infinite; }
+.pi-logo-animate .pi-d  { transform-origin: 19px 19px; animation: pi-diamond 1.6s ease-out forwards, pi-breathe 2.4s 1.6s ease-in-out infinite; }
+
+/* Global guardrail: honour prefers-reduced-motion everywhere. Animations
+   collapse to a single, instant frame and the logo is shown fully drawn. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .pi-logo-animate .pi-l1,
+  .pi-logo-animate .pi-l2,
+  .pi-logo-animate .pi-l3 { stroke-dashoffset: 0 !important; opacity: 1 !important; }
+  .pi-logo-animate .pi-d { opacity: .9 !important; transform: none !important; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Print: the dashboard "Export report" button calls window.print().   */
+/* Hide app chrome + interactive controls, expand the report to the    */
+/* page, and keep each card/section whole across page breaks.          */
+/* ------------------------------------------------------------------ */
+@media print {
+  .pi-no-print { display: none !important; }
+
+  /* The report normally lives inside Layout's max-w-4xl <main>; let it
+     use the full printable width. */
+  #dashboard-report { max-width: none !important; }
+
+  .pi-report-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Keep token backgrounds/fills (status pills, chart bars) when printing. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

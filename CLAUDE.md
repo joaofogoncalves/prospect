@@ -6,7 +6,7 @@ public overview.
 
 ## What this project is
 
-**Project Intake** — a full-stack TypeScript app that captures project intake
+**Prospect** — a full-stack TypeScript app that captures project intake
 requests and uses AI to triage them (summary, tags, risk checklist). npm
 **workspaces** monorepo:
 
@@ -30,6 +30,11 @@ scripts, and env-var reference: [`docs/development.md`](./docs/development.md).
 
 ## Live preview & verifying the UI
 
+**Before changing any UI, read [`docs/styleguide.md`](./docs/styleguide.md) and follow
+it** — accent/color rules, typography, component & table patterns, the `LogoMark`,
+motion + `prefers-reduced-motion`, and accessibility. New UI must stay consistent with
+it; when you make a deliberate design change, update the styleguide in the same commit.
+
 Frontend runs at <http://localhost:5173> (Vite HMR), backend at <http://localhost:3000>
 (`tsx watch`) — both hot-reload, so you can watch the app build live. Run them in the
 background so you can keep working:
@@ -39,6 +44,12 @@ npm run dev:backend  > /tmp/pi_backend.log  2>&1 &
 npm run dev:frontend > /tmp/pi_frontend.log 2>&1 &
 lsof -iTCP:3000 -iTCP:5173 -sTCP:LISTEN -P   # confirm both are listening
 ```
+
+**Use the browser sparingly.** Reach for Playwright only to verify *substantial or
+complex* UI changes (a new view, a non-trivial interaction/flow) — and then with a
+*few* purposeful steps, not a screenshot after every action. For routine work, rely
+on the type-check, the Vitest/Playwright test suites, and reading the code; the
+maintainer can see the running app themselves. Don't narrate the UI step by step.
 
 To **verify the running UI in a real browser**, use the `playwright` plugin's MCP
 tools (`mcp__plugin_playwright_playwright__browser_*`; run `/reload-plugins` if absent):
@@ -61,11 +72,13 @@ backend/src/routes/intakes.ts    protected, user-scoped intake CRUD + analyze
 backend/src/db.ts                Prisma client singleton
 backend/src/env.ts               Loads the SINGLE root .env, validates required vars
 backend/prisma/schema.prisma     Data model (User, Intake, IntakeAnalysisRequest)
-frontend/src/App.tsx             Routes: login / register / protected intake views
-frontend/src/pages/              Login, Register, IntakeList, IntakeDetail, IntakeCreate
+frontend/src/App.tsx             Routes: login / register / protected intake + dashboard views
+frontend/src/pages/              Login, Register, IntakeList, IntakeDetail, IntakeCreate, Dashboard, Profile
+frontend/src/pages/Dashboard.tsx Analytics dashboard (/dashboard, lazy) — Recharts stats + PNG/CSV/JSON/print export
 frontend/src/lib/auth.tsx        AuthProvider / useAuth (token in localStorage)
 frontend/src/lib/theme.tsx       ThemeProvider / useTheme (light/dark, localStorage)
-frontend/src/lib/api.ts          fetch wrapper + intakes API + authApi
+frontend/src/lib/api.ts          fetch wrapper + intakes API (incl. stats) + authApi
+frontend/src/lib/useChartColors.ts   token→concrete colors for Recharts; exportChart.ts / exportData.ts  export helpers
 frontend/src/lib/useQuery.ts     async data hook (loading / error / reload)
 frontend/src/components/states.tsx   shared Loading / Empty / Error UI
 docs/                            Living documentation (keep in sync — see below)
@@ -139,6 +152,7 @@ manually via `npm run setup:hooks`. Bypass a single commit with `SKIP_DOCS_CHECK
 | AI prompt / analysis schema (`backend/src/ai.ts`) | [`docs/ai.md`](./docs/ai.md) |
 | Scripts, env vars, setup | [`docs/development.md`](./docs/development.md) |
 | Frontend tests / helpers | [`docs/testing.md`](./docs/testing.md) |
+| Frontend UI / styles / components (`frontend/src`) | [`docs/styleguide.md`](./docs/styleguide.md) |
 
 ## Recording decisions
 
