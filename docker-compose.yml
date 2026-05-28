@@ -1,26 +1,28 @@
-# Project Intake — one-command local stack.
+# Prospect — one-command local stack.
 #
 #   docker compose up --build
 #
-# Variable substitution (${...}) is read from the root .env automatically, so
-# JWT_SECRET / OPENAI_API_KEY are picked up from the same file the app already uses.
-# The SQLite database lives on the `intake-db` named volume and survives
+# Secrets and config come straight from the root `.env` via `env_file` below — no
+# variable names or values are duplicated here. The one exception is DATABASE_URL,
+# which `.env` points at the local dev DB (`file:./dev.db`); the container overrides
+# it to the volume path so data persists. (`environment` wins over `env_file`.)
+# The SQLite database lives on the `prospect-db` named volume and survives
 # `docker compose down` (use `down -v` to wipe it).
+
+name: prospect
 
 services:
   backend:
     build:
       context: ./backend
+    env_file:
+      - .env
     environment:
-      # Absolute path on the mounted volume — independent of cwd/schema location.
+      # Override the .env value: absolute path on the mounted volume, not the host
+      # dev DB. This is the only var the container needs to set itself.
       DATABASE_URL: "file:/data/app.db"
-      JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET in your root .env}"
-      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
-      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-4o-mini}"
-      PORT: "3000"
-      HOST: "0.0.0.0"
     volumes:
-      - intake-db:/data
+      - prospect-db:/data
     expose:
       - "3000"
     healthcheck:
@@ -46,4 +48,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  intake-db:
+  prospect-db:
