@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { intakesApi, type Intake } from "@/lib/api";
+import { Link, useParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { intakesApi, MAX_REANALYSIS, type Intake } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
+import { LogoMark } from "@/components/LogoMark";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -12,6 +16,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+// While analysis runs in the background (status "processing"), poll the detail
+// endpoint until it settles. Cap the polling so a wedged job doesn't spin
+// forever — after the cap we show a soft "taking longer" with a manual recheck.
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 60000;
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -26,14 +36,17 @@ function Field({ label, value }: { label: string; value: string }) {
 
 export default function IntakeDetail() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [intake, setIntake] = useState<Intake | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [analyzing, setAnalyzing] = useState(false);
+  const [triggering, setTriggering] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [pollTimedOut, setPollTimedOut] = useState(false);
+
+  const isProcessing = intake?.analysisStatus === "processing";
 
   const loadIntake = useCallback(async () => {
     if (!id) return;
@@ -48,16 +61,31 @@ export default function IntakeDetail() {
     }
   }, [id]);
 
+  // Trigger (or retry/regenerate) analysis. Returns immediately with the intake
+  // in "processing"; the poll effect below then watches it to completion.
   const runAnalyze = useCallback(async () => {
     if (!id) return;
-    setAnalyzing(true);
     setAnalyzeError(null);
+    setPollTimedOut(false);
+    setTriggering(true);
     try {
       setIntake(await intakesApi.analyze(id));
     } catch (err) {
       setAnalyzeError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
-      setAnalyzing(false);
+      setTriggering(false);
+    }
+  }, [id]);
+
+  // Silent re-fetch (no full-page loading flash) — used by the "Check again"
+  // action after the poll cap is hit.
+  const checkAgain = useCallback(async () => {
+    if (!id) return;
+    setPollTimedOut(false);
+    try {
+      setIntake(await intakesApi.get(id));
+    } catch {
+      /* leave the current view; the user can try again */
     }
   }, [id]);
 
@@ -65,16 +93,43 @@ export default function IntakeDetail() {
     loadIntake();
   }, [loadIntake]);
 
-  // Analysis runs at creation time. Here it's manual: the empty state's
-  // "Generate analysis" button (for intakes saved without analysis) and the
-  // "Regenerate" action both call runAnalyze.
+  // Poll while a background analysis is running.
+  useEffect(() => {
+    if (!id || !isProcessing) return;
+    let cancelled = false;
+    const startedAt = Date.now();
+    const interval = setInterval(async () => {
+      if (Date.now() - startedAt >= POLL_TIMEOUT_MS) {
+        clearInterval(interval);
+        if (!cancelled) setPollTimedOut(true);
+        return;
+      }
+      try {
+        const fresh = await intakesApi.get(id);
+        if (!cancelled) setIntake(fresh); // a non-"processing" status ends the poll
+      } catch {
+        /* transient — keep polling */
+      }
+    }, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [id, isProcessing]);
 
   return (
     <Layout>
       <div className="mb-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-          ← Back to intakes
-        </Button>
+        <Link
+          to="/"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "text-muted-foreground",
+          )}
+        >
+          <ArrowLeft aria-hidden="true" />
+          Back to intakes
+        </Link>
       </div>
 
       {loading && <LoadingState rows={2} />}
@@ -87,7 +142,8 @@ export default function IntakeDetail() {
             <CardHeader>
               <CardTitle className="text-2xl">{intake.title}</CardTitle>
               <CardDescription>
-                Created {new Date(intake.createdAt).toLocaleString()}
+                Submitted by {intake.user.name ?? intake.user.email} ·{" "}
+                {new Date(intake.createdAt).toLocaleString()}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6">
@@ -109,9 +165,12 @@ export default function IntakeDetail() {
 
           <AiAnalysis
             intake={intake}
-            analyzing={analyzing}
-            error={analyzeError}
+            isOwner={intake.userId === user?.id}
+            busy={isProcessing || triggering}
+            analyzeError={analyzeError}
+            pollTimedOut={pollTimedOut}
             onRun={runAnalyze}
+            onCheckAgain={checkAgain}
           />
         </div>
       )}
@@ -119,18 +178,55 @@ export default function IntakeDetail() {
   );
 }
 
-function AiAnalysis({
-  intake,
-  analyzing,
-  error,
+// The re-analyze action + its remaining-runs countdown. Owner-only. When the
+// per-intake budget is spent the button is disabled with an explanatory note.
+function ReanalyzeAction({
+  label,
+  remaining,
   onRun,
 }: {
-  intake: Intake;
-  analyzing: boolean;
-  error: string | null;
+  label: string;
+  remaining: number;
   onRun: () => void;
 }) {
+  const spent = remaining <= 0;
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button variant="outline" size="sm" onClick={onRun} disabled={spent}>
+        {label}
+      </Button>
+      <span className="text-xs text-muted-foreground">
+        {spent
+          ? "No re-analyses left for this intake."
+          : `You have ${remaining} ${remaining === 1 ? "analysis" : "analyses"} left.`}
+      </span>
+    </div>
+  );
+}
+
+function AiAnalysis({
+  intake,
+  isOwner,
+  busy,
+  analyzeError,
+  pollTimedOut,
+  onRun,
+  onCheckAgain,
+}: {
+  intake: Intake;
+  isOwner: boolean;
+  busy: boolean;
+  analyzeError: string | null;
+  pollTimedOut: boolean;
+  onRun: () => void;
+  onCheckAgain: () => void;
+}) {
   const hasAnalysis = Boolean(intake.analyzedAt && intake.summary);
+  const remaining = MAX_REANALYSIS - intake.analysisRunCount;
+  // A failed background run, or an error from triggering one just now.
+  const failure =
+    analyzeError ??
+    (intake.analysisStatus === "failed" ? intake.analysisError : null);
 
   return (
     <Card>
@@ -144,27 +240,72 @@ function AiAnalysis({
               </CardDescription>
             )}
           </div>
-          {hasAnalysis && !analyzing && (
-            <Button variant="outline" size="sm" onClick={onRun}>
-              Regenerate
-            </Button>
+          {/* Regenerate is the owner action once analysis is complete. */}
+          {isOwner && !busy && hasAnalysis && (
+            <ReanalyzeAction
+              label="Regenerate"
+              remaining={remaining}
+              onRun={onRun}
+            />
           )}
         </div>
       </CardHeader>
       <CardContent>
-        {analyzing && <LoadingState rows={2} />}
+        {busy && (
+          <div className="flex flex-col gap-3 py-4">
+            <div className="flex items-center gap-3 text-muted-foreground">
+              <LogoMark animate size={20} />
+              <span className="text-sm">
+                Analyzing… this can take a few seconds.
+              </span>
+            </div>
+            {pollTimedOut && (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">
+                  This is taking longer than usual.
+                </span>
+                <Button variant="outline" size="sm" onClick={onCheckAgain}>
+                  Check again
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
-        {!analyzing && error && <ErrorState message={error} onRetry={onRun} />}
+        {!busy && failure && (
+          <div className="grid gap-3">
+            <ErrorState message={failure} onRetry={isOwner ? onRun : undefined} />
+            {isOwner && (
+              <span className="text-xs text-muted-foreground">
+                {remaining <= 0
+                  ? "No re-analyses left for this intake."
+                  : `You have ${remaining} ${remaining === 1 ? "analysis" : "analyses"} left.`}
+              </span>
+            )}
+          </div>
+        )}
 
-        {!analyzing && !error && !hasAnalysis && (
+        {!busy && !failure && !hasAnalysis && (
           <EmptyState
             title="No analysis yet"
-            description="Generate a summary, tags, and a risk checklist for this intake."
-            action={<Button onClick={onRun}>Generate analysis</Button>}
+            description={
+              isOwner
+                ? "Generate a summary, tags, and a risk checklist for this intake."
+                : "Only the person who submitted this intake can run its analysis."
+            }
+            action={
+              isOwner ? (
+                <ReanalyzeAction
+                  label="Generate analysis"
+                  remaining={remaining}
+                  onRun={onRun}
+                />
+              ) : undefined
+            }
           />
         )}
 
-        {!analyzing && !error && hasAnalysis && (
+        {!busy && !failure && hasAnalysis && (
           <div className="grid gap-6">
             <div>
               <h3 className="mb-1 text-sm font-medium">Summary</h3>

@@ -36,6 +36,16 @@ model Intake {
   riskChecklist Json?
   analyzedAt    DateTime?
 
+  // Analysis lifecycle for the async (background-job + client-polling) flow.
+  // pending: never analyzed, nothing running (idle — owner can Generate).
+  // processing: a job is running (client polls until it resolves).
+  // completed: analyzedAt/summary populated. failed: see analysisError.
+  analysisStatus String  @default("pending")
+  analysisError  String? // last failure message, surfaced to the poller; cleared on a new run
+  // User-initiated re-analyze runs spent on this intake (the on-create analysis
+  // does NOT count). Capped at MAX_REANALYSIS in routes/intakes.ts.
+  analysisRunCount Int   @default(0)
+
   userId           String
   user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   analysisRequests IntakeAnalysisRequest[]

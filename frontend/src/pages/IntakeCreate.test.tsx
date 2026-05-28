@@ -8,14 +8,14 @@ import IntakeCreate from "@/pages/IntakeCreate";
 // Intercept the api boundary. auth.tsx (via Layout) imports `api`/`getToken`,
 // and IntakeCreate imports `intakesApi` — all from "@/lib/api".
 const createMock = vi.fn();
-const analyzeMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   api: vi.fn(),
   getToken: () => null,
   setToken: () => {},
+  MAX_REANALYSIS: 3,
   intakesApi: {
     create: (...args: unknown[]) => createMock(...args),
-    analyze: (...args: unknown[]) => analyzeMock(...args),
+    analyze: vi.fn(),
     list: vi.fn(),
     get: vi.fn(),
   },
@@ -23,9 +23,10 @@ vi.mock("@/lib/api", () => ({
 
 beforeEach(() => {
   createMock.mockReset();
-  analyzeMock.mockReset();
 });
 
+// Analysis now runs as a background job, so create returns immediately with the
+// intake in "processing"; IntakeCreate just navigates to the detail view.
 const intake = (over: Record<string, unknown> = {}) => ({
   id: "i1",
   title: "Forecasting platform",
@@ -39,6 +40,11 @@ const intake = (over: Record<string, unknown> = {}) => ({
   tags: null,
   riskChecklist: null,
   analyzedAt: null,
+  analysisStatus: "processing",
+  analysisError: null,
+  analysisRunCount: 0,
+  userId: "u1",
+  user: { id: "u1", name: null, email: "a@b.c" },
   ...over,
 });
 
@@ -57,44 +63,32 @@ function render() {
   });
 }
 
-describe("IntakeCreate — analyze-on-create state transitions", () => {
-  it("form → working → analysis error (intake saved) → retry → detail", async () => {
+describe("IntakeCreate — submit then hand off to detail", () => {
+  it("create succeeds → navigates straight to the detail view", async () => {
     const user = userEvent.setup();
     render();
     await fillForm(user);
 
-    // Hold the create request open to observe the working state.
+    createMock.mockResolvedValueOnce(intake());
+    await user.click(screen.getByRole("button", { name: "Create intake" }));
+
+    expect(await screen.findByText("Detail ✓")).toBeInTheDocument();
+  });
+
+  it("shows a submitting state while the create request is in flight", async () => {
+    const user = userEvent.setup();
+    render();
+    await fillForm(user);
+
+    // Hold the create request open to observe the submitting state.
     const pending = deferred<ReturnType<typeof intake>>();
     createMock.mockReturnValueOnce(pending.promise);
     await user.click(screen.getByRole("button", { name: "Create intake" }));
 
-    // working: shows the creating state.
-    expect(await screen.findByText("Creating intake…")).toBeInTheDocument();
+    const submitting = screen.getByRole("button", { name: "Creating…" });
+    expect(submitting).toBeDisabled();
 
-    // Intake persisted, but analysis failed → recoverable error state.
-    pending.resolve(
-      intake({ analyzedAt: null, analysisError: "OpenAI request failed" }),
-    );
-    expect(
-      await screen.findByText("Intake saved — analysis failed"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("OpenAI request failed");
-
-    // Retry analysis succeeds → navigate to the detail view.
-    analyzeMock.mockResolvedValueOnce(intake({ analyzedAt: "2026-05-28T01:00:00Z" }));
-    await user.click(screen.getByRole("button", { name: "Retry analysis" }));
-    expect(await screen.findByText("Detail ✓")).toBeInTheDocument();
-    expect(analyzeMock).toHaveBeenCalledWith("i1");
-  });
-
-  it("create succeeds and analysis succeeds → navigates straight to detail", async () => {
-    const user = userEvent.setup();
-    render();
-    await fillForm(user);
-
-    createMock.mockResolvedValueOnce(intake({ analyzedAt: "2026-05-28T01:00:00Z" }));
-    await user.click(screen.getByRole("button", { name: "Create intake" }));
-
+    pending.resolve(intake());
     expect(await screen.findByText("Detail ✓")).toBeInTheDocument();
   });
 
@@ -107,7 +101,6 @@ describe("IntakeCreate — analyze-on-create state transitions", () => {
     createMock.mockRejectedValueOnce(new Error("Failed to create intake"));
     await user.click(screen.getByRole("button", { name: "Create intake" }));
 
-    // Error shown, form still present with the values intact, button usable.
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Failed to create intake",
     );
@@ -115,8 +108,8 @@ describe("IntakeCreate — analyze-on-create state transitions", () => {
     const retry = screen.getByRole("button", { name: "Try again" });
     await waitFor(() => expect(retry).toBeEnabled());
 
-    // Resubmit; this time creation + analysis succeed → detail.
-    createMock.mockResolvedValueOnce(intake({ analyzedAt: "2026-05-28T01:00:00Z" }));
+    // Resubmit; this time creation succeeds → detail.
+    createMock.mockResolvedValueOnce(intake());
     await user.click(retry);
     expect(await screen.findByText("Detail ✓")).toBeInTheDocument();
   });
