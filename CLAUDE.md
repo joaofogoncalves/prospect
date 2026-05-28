@@ -71,6 +71,32 @@ docs/                      Living documentation (keep in sync — see below)
   `npm run db:migrate`. `backend/prisma/dev.db` is local and gitignored.
 - **Build before assuming types pass:** `npm run build` builds both workspaces.
 
+## Testing
+
+Two frontend test layers, both **deterministic** (they mock the API — no backend or
+seeded DB needed):
+
+- **Component** — Vitest + React Testing Library (jsdom): `frontend/src/**/*.test.tsx`
+- **E2E** — Playwright (real Chromium, mocked API): `frontend/e2e/*.spec.ts`
+
+```bash
+npm run test        # Vitest (fast, headless)
+npm run test:e2e    # Playwright (auto-starts vite); first run: cd frontend && npx playwright install chromium
+```
+
+Focus tests on **state transitions**, especially `idle → submitting → error →
+recovery → success` — assert the error UI (`role="alert"`) *and* that the form
+becomes interactive again. Query by role/label, not CSS.
+
+- Component tests: mock `@/lib/api`, render via `renderWithRouter` (`src/test/utils.tsx`),
+  use `deferred()` to hold a request open and catch the "submitting" state.
+- E2E tests: import `test`/`expect` from `./fixtures`; the `apiMock` fixture queues
+  per-endpoint responses (`apiMock.login(401, …)` then `apiMock.login(200, …)` to
+  script error→recovery). Add new endpoints in `e2e/fixtures.ts`.
+- Test files are excluded from `tsc` (`tsconfig.json`), so they never break the build.
+
+Full guide with copy-paste templates: [`docs/testing.md`](./docs/testing.md).
+
 ## Keeping docs in sync
 
 Documentation lives in [`docs/`](./docs/). A versioned **`post-commit`** git hook
@@ -89,6 +115,14 @@ manually via `npm run setup:hooks`. Bypass a single commit with `SKIP_DOCS_CHECK
 | Routes / payloads (`backend/src/index.ts`) | [`docs/api.md`](./docs/api.md) |
 | Data model (`schema.prisma`) | [`docs/architecture.md`](./docs/architecture.md) |
 | Scripts, env vars, setup | [`docs/development.md`](./docs/development.md) |
+
+## Recording decisions
+
+Major decisions are logged in [`docs/decisions.md`](./docs/decisions.md) (lightweight
+ADR style). **Whenever a significant choice is made — a library, an architectural
+pattern, a workflow convention — append an entry** (`## NNN — Title`, date, Decision,
+Why). Don't rewrite past entries; supersede them. Read this log before reversing an
+established choice.
 
 ## House rule
 
