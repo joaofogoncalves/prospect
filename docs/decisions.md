@@ -152,3 +152,39 @@ Keeping the final analysis denormalized on `Intake` while logging each attempt
 separately trades disk for observability: we can measure response times and inspect
 exactly what was sent/returned while we iterate on the prompt and schema. See
 [ai.md](./ai.md).
+
+## 013 — Light/dark theme: class on <html>, localStorage, pre-paint script
+*2026-05-28*
+
+**Decision:** A `ThemeProvider` (`frontend/src/lib/theme.tsx`) toggles a `dark`
+class on `<html>` and persists the choice to `localStorage` (`intake_theme`),
+defaulting to the OS preference (`prefers-color-scheme`). A tiny **inline script in
+`index.html`** applies the saved/system theme *before first paint* to avoid a
+flash of the wrong theme. The toggle lives in the account dropdown.
+
+**Why:** Tailwind 4's dark variant keys off the `dark` class, so a single class on
+the root is the least-magic approach and works with the existing shadcn tokens.
+localStorage + system fallback is the conventional, dependency-free pattern. The
+pre-paint script is the standard fix for the dark-mode "flash"; the storage key is
+deliberately duplicated in `index.html` and `theme.tsx` with a comment to keep them
+in sync. `getInitialTheme()` guards `matchMedia` so it also runs under jsdom in
+tests, and `renderWithRouter` wraps `ThemeProvider` so components using `useTheme`
+render in tests.
+
+## 014 — In-app change-password (re-auth, sign out after)
+*2026-05-28*
+
+**Decision:** Authenticated users can change their password via
+`POST /api/auth/change-password`, which **requires the current password**, enforces
+the same ≥8-char rule as registration and that the new password differs, then
+returns `204`. The client (`ChangePasswordDialog`, reached from the account
+dropdown) **signs the user out and redirects to `/login`** on success. Other
+existing sessions keep their old JWT until it expires — accepted for this app.
+
+**Why:** Requiring the current password prevents a hijacked session from silently
+locking out the owner. Signing out afterwards gives a clear "use your new password"
+moment without building token-revocation/refresh infrastructure; since JWTs are
+stateless (decision [004](#004--auth-jwt--bcrypt-user-scoped-routes)), proper
+invalidation of *other* sessions would need a token store/blocklist — deferred as
+out of scope. Client-side confirm + length checks mirror the server so errors are
+caught early, but the server remains authoritative.

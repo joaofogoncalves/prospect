@@ -58,6 +58,25 @@ Return the authenticated user.
 - `200 OK` — `{ "id", "email", "name" }`
 - `401 Unauthorized` — missing/invalid token
 
+### `POST /api/auth/change-password`  🔒
+Change the current user's password. Requires the current password. The client
+signs out afterwards (existing tokens keep working until they expire).
+
+**Request body**
+```json
+{ "currentPassword": "…", "newPassword": "at-least-8-chars" }
+```
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `currentPassword` | yes | must match the stored password |
+| `newPassword` | yes | min 8 characters, and must differ from the current one |
+
+**Responses**
+- `204 No Content` — password changed
+- `400 Bad Request` — missing fields / `< 8` chars / unchanged password
+- `401 Unauthorized` — missing/invalid token, or current password incorrect
+
 ## Intakes
 
 All intake routes are **protected** (🔒) and scoped to the authenticated user.

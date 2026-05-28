@@ -56,7 +56,7 @@ Full workflow, smoke tests, and a known-good baseline:
 backend/src/index.ts             Server entry — registers CORS, auth plugin, route modules
 backend/src/auth.ts              JWT plugin + `authenticate` preHandler (sets request.user)
 backend/src/ai.ts                OpenAI analysis service (strict json_schema)
-backend/src/routes/auth.ts       register / login / me
+backend/src/routes/auth.ts       register / login / me / change-password
 backend/src/routes/intakes.ts    protected, user-scoped intake CRUD + analyze
 backend/src/db.ts                Prisma client singleton
 backend/src/env.ts               Loads the SINGLE root .env, validates required vars
@@ -64,7 +64,8 @@ backend/prisma/schema.prisma     Data model (User, Intake, IntakeAnalysisRequest
 frontend/src/App.tsx             Routes: login / register / protected intake views
 frontend/src/pages/              Login, Register, IntakeList, IntakeDetail, IntakeCreate
 frontend/src/lib/auth.tsx        AuthProvider / useAuth (token in localStorage)
-frontend/src/lib/api.ts          fetch wrapper + intakes API
+frontend/src/lib/theme.tsx       ThemeProvider / useTheme (light/dark, localStorage)
+frontend/src/lib/api.ts          fetch wrapper + intakes API + authApi
 frontend/src/lib/useQuery.ts     async data hook (loading / error / reload)
 frontend/src/components/states.tsx   shared Loading / Empty / Error UI
 docs/                            Living documentation (keep in sync — see below)
