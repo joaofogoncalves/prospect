@@ -1,20 +1,14 @@
 ```
-██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗
-██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝
-██████╔╝██████╔╝██║   ██║     ██║█████╗  ██║        ██║
-██╔═══╝ ██╔══██╗██║   ██║██   ██║██╔══╝  ██║        ██║
-██║     ██║  ██║╚██████╔╝╚█████╔╝███████╗╚██████╗   ██║
-╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝
-
-██╗███╗   ██╗████████╗ █████╗ ██╗  ██╗███████╗
-██║████╗  ██║╚══██╔══╝██╔══██╗██║ ██╔╝██╔════╝
-██║██╔██╗ ██║   ██║   ███████║█████╔╝ █████╗
-██║██║╚██╗██║   ██║   ██╔══██║██╔═██╗ ██╔══╝
-██║██║ ╚████║   ██║   ██║  ██║██║  ██╗███████╗
-╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
+██████╗ ██████╗  ██████╗ ███████╗██████╗ ███████╗ ██████╗████████╗
+██╔══██╗██╔══██╗██╔═══██╗██╔════╝██╔══██╗██╔════╝██╔════╝╚══██╔══╝
+██████╔╝██████╔╝██║   ██║███████╗██████╔╝█████╗  ██║        ██║
+██╔═══╝ ██╔══██╗██║   ██║╚════██║██╔═══╝ ██╔══╝  ██║        ██║
+██║     ██║  ██║╚██████╔╝███████║██║     ███████╗╚██████╗   ██║
+╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝     ╚══════╝ ╚═════╝   ╚═╝
 ```
 
-> Capture project intake requests and let AI triage them — summary, tags, and a risk checklist.
+> **Appraise every opportunity.** Capture incoming project requests and let AI triage
+> them — summary, tags, and a risk checklist.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933?logo=node.js&logoColor=white)
@@ -27,7 +21,7 @@
 
 ## What is this?
 
-**Project Intake** is a small, full-stack TypeScript app for capturing incoming
+**Prospect** is a small, full-stack TypeScript app for capturing incoming
 project requests and triaging them with AI. You sign in, fill out a short intake
 form (title, description, budget, timeline, industry), and the app immediately
 calls OpenAI to generate a **plain-language summary**, a set of **tags**, and a
@@ -117,7 +111,7 @@ Docker network — so there's no CORS hop and no hard-coded `localhost`.
 | --- | --- |
 | **Backend** | Multi-stage build → `node dist/index.js`. Migrations (`prisma migrate deploy`) run automatically on startup. |
 | **Frontend** | Built with Vite, served by nginx; calls the API same-origin (`/api`). |
-| **Database** | SQLite on the `intake-db` named volume (`/data/app.db`) — **survives `down`/`up` and container removal**. |
+| **Database** | SQLite on the `prospect-db` named volume (`/data/app.db`) — **survives `down`/`up` and container removal**. |
 | **Secrets** | The backend loads the root `.env` directly (`env_file`) — `JWT_SECRET` / `OPENAI_API_KEY` are never duplicated in `docker-compose.yml`. |
 
 ```bash
