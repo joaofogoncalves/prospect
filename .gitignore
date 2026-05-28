@@ -44,8 +44,12 @@ frontend/dist/
 .vite/
 
 # Playwright (MCP browser checks: traces, snapshots, screenshots)
+# Ad-hoc verification screenshots only — intentionally NOT a blanket *.png rule,
+# so documentation images (e.g. under docs/) can still be committed.
 .playwright-mcp/
 test-results/
 playwright-report/
 *-snapshot.png
 login-initial.png
+light-mode.png
+light-mode-working.png
